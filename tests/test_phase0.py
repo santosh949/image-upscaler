@@ -15,14 +15,14 @@ def test_ncnn_executable_exists(requires_ncnn):
     exe_path, _ = get_ncnn_paths()
     assert os.path.isfile(exe_path), f"Executable missing at {exe_path}"
 
-def test_model_weights_and_param_exist(requires_ncnn):
+def test_model_weights_and_param_exist(requires_weights):
     _, models_dir = get_ncnn_paths()
     bin_path = os.path.join(models_dir, "realesrgan-x4plus.bin")
     param_path = os.path.join(models_dir, "realesrgan-x4plus.param")
     assert os.path.isfile(bin_path), f"Binary weights missing at {bin_path}"
     assert os.path.isfile(param_path), f"Param file missing at {param_path}"
 
-def test_real_inference_output(requires_ncnn):
+def test_real_inference_output(requires_weights):
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     exe_path, _ = get_ncnn_paths()
     in_path = os.path.join(root, "tests", "fixtures", "test_input.png")

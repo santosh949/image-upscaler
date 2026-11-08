@@ -11,9 +11,11 @@ class ModelRegistry:
     def _init_catalog(self):
         root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         models_dir = os.path.join(root_dir, "tools", "realesrgan-ncnn-vulkan", "models")
+        is_clean_sim = os.environ.get("SIMULATE_CLEAN_CLONE") == "1"
 
         # 1. RealESRGAN x4plus
         x4plus_bin = os.path.join(models_dir, "realesrgan-x4plus.bin")
+        has_x4plus = os.path.isfile(x4plus_bin) and not is_clean_sim
         self._models["realesrgan-x4plus"] = {
             "id": "realesrgan-x4plus",
             "name": "Real-ESRGAN x4plus (General Photo)",
@@ -28,12 +30,14 @@ class ModelRegistry:
             "license_status": "verified",
             "license_class": "non-commercial / unclear",
             "min_vram_mb": 1500,
-            "weights_available": os.path.isfile(x4plus_bin),
-            "smoke_tested": True  # Verified in Phase 0 & 1
+            "weights_available": has_x4plus,
+            "smoke_tested": has_x4plus,
+            "unsupported_reason": None if has_x4plus else "Weights not installed in local tools directory."
         }
 
         # 2. RealESRGAN x4plus Anime
         anime_bin = os.path.join(models_dir, "realesrgan-x4plus-anime.bin")
+        has_anime = os.path.isfile(anime_bin) and not is_clean_sim
         self._models["realesrgan-x4plus-anime"] = {
             "id": "realesrgan-x4plus-anime",
             "name": "Real-ESRGAN x4plus Anime 6B (Illustration/Art)",
@@ -48,12 +52,14 @@ class ModelRegistry:
             "license_status": "verified",
             "license_class": "non-commercial / unclear",
             "min_vram_mb": 1200,
-            "weights_available": os.path.isfile(anime_bin),
-            "smoke_tested": True  # Verified via scripts/smoke_test_anime.py
+            "weights_available": has_anime,
+            "smoke_tested": has_anime,
+            "unsupported_reason": None if has_anime else "Weights not installed in local tools directory."
         }
 
         # 3. RealESRGAN AnimeVideo v3 x4 (Ultra-Fast 1.2MB weights)
         animev3_bin = os.path.join(models_dir, "realesr-animevideov3-x4.bin")
+        has_animev3 = os.path.isfile(animev3_bin) and not is_clean_sim
         self._models["realesr-animevideov3-x4"] = {
             "id": "realesr-animevideov3-x4",
             "name": "Real-ESRGAN AnimeVideo v3 (Ultra-Fast)",
@@ -68,13 +74,14 @@ class ModelRegistry:
             "license_status": "verified",
             "license_class": "non-commercial / unclear",
             "min_vram_mb": 800,
-            "weights_available": os.path.isfile(animev3_bin),
-            "smoke_tested": True
+            "weights_available": has_animev3,
+            "smoke_tested": has_animev3,
+            "unsupported_reason": None if has_animev3 else "Weights not installed in local tools directory."
         }
 
         # 4. RealESRNet x4plus (Non-GAN Faithful MSE)
         realesrnet_bin = os.path.join(models_dir, "realesrnet-x4plus.bin")
-        has_realesrnet = os.path.isfile(realesrnet_bin)
+        has_realesrnet = os.path.isfile(realesrnet_bin) and not is_clean_sim
         self._models["realesrnet-x4plus"] = {
             "id": "realesrnet-x4plus",
             "name": "Real-ESRNet x4plus (Faithful MSE Photo)",

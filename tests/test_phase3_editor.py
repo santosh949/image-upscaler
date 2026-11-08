@@ -11,6 +11,10 @@ client = TestClient(app)
 
 @pytest.fixture(scope="module")
 def completed_job_id():
+    from tests.conftest import is_ncnn_installed, are_weights_installed
+    if not is_ncnn_installed() or not are_weights_installed():
+        pytest.skip("Model weights or NCNN binary not present for live editor tests.")
+
     fixture_path = os.path.abspath(r"tests\fixtures\test_input.png")
     with open(fixture_path, "rb") as f:
         up_res = client.post("/api/v1/images", files={"file": ("test_input.png", f, "image/png")})
@@ -44,7 +48,7 @@ def test_100_percent_crop_endpoint(completed_job_id):
     with Image.open(io.BytesIO(res.content)) as crop_img:
         assert crop_img.size == (128, 128)
 
-def test_crop_preview_job_execution():
+def test_crop_preview_job_execution(requires_weights):
     fixture_path = os.path.abspath(r"tests\fixtures\test_input.png")
     with open(fixture_path, "rb") as f:
         up_res = client.post("/api/v1/images", files={"file": ("test_input.png", f, "image/png")})

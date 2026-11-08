@@ -37,7 +37,7 @@ def setup_test_env():
     yield
     force_remove_tree(test_dir)
 
-def test_frontend_dist_and_index_served():
+def test_frontend_dist_and_index_served(requires_frontend):
     resp = client.get("/")
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
@@ -68,7 +68,7 @@ def test_resolution_studio_aspect_ratio_safety():
     assert resp.status_code == 400
     assert "aspect ratio" in resp.json()["detail"].lower()
 
-def test_task_categories_mapping_validity():
+def test_task_categories_mapping_validity(requires_weights):
     """Verify all task category models exist in registry and are available."""
     models = {m["id"]: m for m in model_registry.list_models()}
 

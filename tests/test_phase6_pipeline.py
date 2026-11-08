@@ -92,7 +92,7 @@ def test_metadata_embedder(tmp_path):
     assert "prepass" in re_opened.text.get("Aether-Stages", "")
     assert re_opened.text.get("Aether-Consistency-PSNR") == "34.5 dB"
 
-def test_distinct_pipeline_modes(tmp_path):
+def test_distinct_pipeline_modes(tmp_path, requires_weights):
     # Create small test fixture
     fixture_path = os.path.join("tests", "fixtures", "test_input.png")
     if not os.path.exists(fixture_path):

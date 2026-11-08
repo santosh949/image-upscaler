@@ -5,7 +5,7 @@ from ai_engine.registry.model_registry import model_registry
 
 client = TestClient(app)
 
-def test_model_registry_tier3_isolation():
+def test_model_registry_tier3_isolation(requires_weights):
     models = model_registry.list_models()
     model_ids = {m["id"] for m in models}
 

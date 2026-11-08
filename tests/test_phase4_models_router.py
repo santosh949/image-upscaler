@@ -68,7 +68,7 @@ def test_router_decision_rules():
     assert override["selected_model"] == "realesrgan-x4plus-anime"
     assert "manual override" in override["reasoning"].lower()
 
-def test_api_analyze_and_anime_inference(requires_ncnn):
+def test_api_analyze_and_anime_inference(requires_weights):
     fixture_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "fixtures", "test_input.png"))
     with open(fixture_path, "rb") as f:
         up_res = client.post("/api/v1/images", files={"file": ("test_input.png", f, "image/png")})
@@ -225,5 +225,59 @@ def test_progressive_pipeline_recommended_parameters(tmp_path):
     assert res["status"] == "completed"
     assert "classical-restoration-prepass" in res["stages_executed"]
     assert "conservative-post-polish" in res["stages_executed"]
+
+
+def test_router_graceful_on_fresh_clone_without_weights():
+    """Simulates fresh-clone environment where no model weights are installed yet."""
+    from unittest.mock import patch
+
+    def mock_list_models(only_available=False, only_smoke_tested=False):
+        if only_available:
+            return []
+        # Return standard catalog directly without calling self
+        return list(model_registry._models.values())
+
+    with patch.object(model_registry, "list_models", side_effect=mock_list_models):
+        # 1. Manga routing with zero weights
+        manga_route = router.route({"detected_category": "manga", "category_confidence": 0.95})
+        assert manga_route["selected_model"] == "realesrgan-x4plus-anime"
+        assert manga_route["weights_available"] is False
+        assert "Weights not installed" in manga_route["reasoning"]
+        assert manga_route["preset"] == "manga_crisp"
+
+        # 2. Anime routing with zero weights
+        anime_route = router.route({"detected_category": "anime", "category_confidence": 0.90})
+        assert anime_route["selected_model"] == "realesrgan-x4plus-anime"
+        assert anime_route["weights_available"] is False
+        assert anime_route["preset"] == "artwork"
+
+        # 3. Document routing with zero weights
+        doc_route = router.route({"detected_category": "document", "category_confidence": 0.88})
+        assert doc_route["selected_model"] == "realesrgan-x4plus"
+        assert doc_route["weights_available"] is False
+        assert doc_route["preset"] == "faithful"
+
+        # 4. Photo routing with zero weights
+        photo_route = router.route({"detected_category": "photo", "category_confidence": 0.85})
+        assert photo_route["selected_model"] == "realesrgan-x4plus"
+        assert photo_route["weights_available"] is False
+
+
+def test_ncnn_adapter_explicit_error_on_missing_binary_or_weights(tmp_path):
+    """Verifies that missing binary or weights raises descriptive FileNotFoundError."""
+    from ai_engine.models.ncnn_adapter import NCNNRealESRGANAdapter
+
+    in_f = str(tmp_path / "dummy_in.png")
+    out_f = str(tmp_path / "dummy_out.png")
+    Image.new("RGB", (16, 16)).save(in_f)
+
+    # Missing binary
+    adapter_no_bin = NCNNRealESRGANAdapter(exe_path=str(tmp_path / "nonexistent.exe"))
+    with pytest.raises(FileNotFoundError, match="Real-ESRGAN NCNN Vulkan binary not found"):
+        adapter_no_bin.enhance(input_path=in_f, output_path=out_f)
+
+    with pytest.raises(FileNotFoundError, match="Real-ESRGAN NCNN Vulkan binary not found"):
+        adapter_no_bin.enhance_batch(input_paths=[in_f], output_paths=[out_f])
+
 
 

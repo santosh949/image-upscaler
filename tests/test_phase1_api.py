@@ -32,10 +32,10 @@ def test_models_registry_endpoint():
     m = data["models"][0]
     assert m["id"] in ("realesrgan-x4plus", "realesrgan-x4plus-ncnn")
     assert m["scale"] == 4
-    assert m["available"] is True
+    assert isinstance(m["available"], bool)
     assert m["code_license"] == "BSD-3-Clause"
 
-def test_upload_inference_download_lifecycle():
+def test_upload_inference_download_lifecycle(requires_weights):
     fixture_path = os.path.abspath(r"tests\fixtures\test_input.png")
     assert os.path.isfile(fixture_path), "Input fixture missing"
 

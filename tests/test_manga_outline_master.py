@@ -73,7 +73,7 @@ def test_manga_outline_screentone_protection():
     proc_std = np.std(p_on)
     assert proc_std > 0.8 * orig_std
 
-def test_pipeline_manga_crisp_stage_execution(tmp_path):
+def test_pipeline_manga_crisp_stage_execution(tmp_path, requires_weights):
     # Minimal test running pipeline with manga_crisp preset
     in_file = tmp_path / "test_in.png"
     out_file = tmp_path / "test_out.png"

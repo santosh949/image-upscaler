@@ -122,10 +122,13 @@ class NCNNRealESRGANAdapter(ModelAdapter):
         if not os.path.isfile(input_path):
             raise FileNotFoundError(f"Input file not found: {input_path}")
 
+        if not os.path.isfile(self.exe_path):
+            raise FileNotFoundError(f"Real-ESRGAN NCNN Vulkan binary not found at '{self.exe_path}'. Run scripts/setup_environment.py to install.")
+
         bin_file = f"{model_name}.bin"
         param_file = f"{model_name}.param"
         if not os.path.isfile(os.path.join(self.models_dir, bin_file)):
-            raise FileNotFoundError(f"Model file missing: {bin_file} in {self.models_dir}")
+            raise FileNotFoundError(f"Model file missing: '{bin_file}' in '{self.models_dir}'. Run scripts/setup_environment.py to install.")
 
         in_img = Image.open(input_path)
         in_w, in_h = in_img.size
@@ -216,9 +219,12 @@ class NCNNRealESRGANAdapter(ModelAdapter):
         if not input_paths:
             return []
 
+        if not os.path.isfile(self.exe_path):
+            raise FileNotFoundError(f"Real-ESRGAN NCNN Vulkan binary not found at '{self.exe_path}'. Run scripts/setup_environment.py to install.")
+
         bin_file = f"{model_name}.bin"
         if not os.path.isfile(os.path.join(self.models_dir, bin_file)):
-            raise FileNotFoundError(f"Model file missing: {bin_file} in {self.models_dir}")
+            raise FileNotFoundError(f"Model file missing: '{bin_file}' in '{self.models_dir}'. Run scripts/setup_environment.py to install.")
 
         with tempfile.TemporaryDirectory(prefix="ncnn_batch_in_") as batch_in_dir, \
              tempfile.TemporaryDirectory(prefix="ncnn_batch_out_") as batch_out_dir:

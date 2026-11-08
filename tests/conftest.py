@@ -33,18 +33,35 @@ def setup_test_database(tmp_path_factory):
     job_manager.stop_dispatcher()
 
 def is_ncnn_installed() -> bool:
+    if os.environ.get("SIMULATE_CLEAN_CLONE") == "1":
+        return False
     bin_name = "realesrgan-ncnn-vulkan.exe" if sys.platform.startswith("win") else "realesrgan-ncnn-vulkan"
     exe_path = ROOT_DIR / "tools" / "realesrgan-ncnn-vulkan" / bin_name
     return exe_path.is_file()
 
 def is_frontend_built() -> bool:
+    if os.environ.get("SIMULATE_CLEAN_CLONE") == "1":
+        return False
     dist_dir = ROOT_DIR / "frontend" / "dist"
     return dist_dir.is_dir() and (dist_dir / "index.html").is_file()
+
+def are_weights_installed() -> bool:
+    if os.environ.get("SIMULATE_CLEAN_CLONE") == "1":
+        return False
+    models_dir = ROOT_DIR / "tools" / "realesrgan-ncnn-vulkan" / "models"
+    return (models_dir / "realesrgan-x4plus.bin").is_file()
 
 @pytest.fixture
 def requires_ncnn():
     if not is_ncnn_installed():
         pytest.skip("Real-ESRGAN NCNN Vulkan binary not present. Run scripts/setup_environment.py to install.")
+
+@pytest.fixture
+def requires_weights():
+    if not is_ncnn_installed():
+        pytest.skip("Real-ESRGAN NCNN Vulkan binary not present. Run scripts/setup_environment.py to install.")
+    if not are_weights_installed():
+        pytest.skip("Model weights not present. Run scripts/setup_environment.py to download.")
 
 @pytest.fixture
 def requires_frontend():

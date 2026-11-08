@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, Callable, List
 from PIL import Image
 
 from ai_engine.models.ncnn_adapter import NCNNRealESRGANAdapter
-from ai_engine.processing.tile_engine import TileEngine
+from ai_engine.processing.tile_engine import TileEngine, JobPausedException
 from ai_engine.processing.alpha_handler import AlphaHandler
 from ai_engine.processing.restoration import RestorationEngine
 from ai_engine.processing.consistency import ConsistencyChecker
@@ -37,6 +37,9 @@ class EnhancementPipeline:
         tile_size: int = 256,
         progress_cb: Optional[Callable[[int, int, str], None]] = None,
         cancel_check: Optional[Callable[[], bool]] = None,
+        pause_check: Optional[Callable[[], bool]] = None,
+        job_id: Optional[str] = None,
+        tile_store: Optional[Any] = None,
         format_name: str = "PNG",
         quality: int = 95,
         preset: Optional[str] = "natural",
@@ -137,7 +140,8 @@ class EnhancementPipeline:
                         scale=actual_scale,
                         tile_size=tile_size,
                         gpu_id=gpu_id,
-                        model_name=model_name
+                        model_name=model_name,
+                        cancel_check=cancel_check
                     )
                     return Image.open(temp_out_path).copy()
                 finally:
@@ -166,7 +170,8 @@ class EnhancementPipeline:
                         scale=actual_scale,
                         tile_size=tile_size,
                         gpu_id=gpu_id,
-                        model_name=model_name
+                        model_name=model_name,
+                        cancel_check=cancel_check
                     )
 
                     results = []
@@ -177,15 +182,54 @@ class EnhancementPipeline:
                 finally:
                     shutil.rmtree(temp_dir, ignore_errors=True)
 
-            upscaled = self.tile_engine.process(
-                img=cleaned_rgb,
-                infer_fn=ncnn_infer_tile,
-                batch_infer_fn=ncnn_batch_infer_tiles,
-                scale=actual_scale,
-                tile_size=tile_size,
-                overlap=32,
-                cancel_check=cancel_check
-            )
+            stage_id = f"{job_id}_standard" if job_id else None
+            effective_store = tile_store
+            if effective_store is None and stage_id:
+                from ai_engine.processing.tile_store import tile_store as global_store
+                effective_store = global_store
+
+            if effective_store and stage_id:
+                tile_grid = self.tile_engine.generate_tile_grid(cleaned_rgb.width, cleaned_rgb.height, tile_size, overlap=32)
+                effective_store.init_stage(
+                    stage_id=stage_id,
+                    job_id=job_id,
+                    stage_index=1,
+                    operation=mode,
+                    model=model_name,
+                    from_size=(cleaned_rgb.width, cleaned_rgb.height),
+                    to_size=(target_w, target_h),
+                    tile_grid=tile_grid
+                )
+
+            try:
+                upscaled = self.tile_engine.process(
+                    img=cleaned_rgb,
+                    infer_fn=ncnn_infer_tile,
+                    batch_infer_fn=ncnn_batch_infer_tiles,
+                    scale=actual_scale,
+                    tile_size=tile_size,
+                    overlap=32,
+                    progress_cb=lambda done, tot: progress_cb(done, tot, f"Stage 2/4: Neural super-resolution ({done}/{tot} tiles)") if progress_cb else None,
+                    cancel_check=cancel_check,
+                    pause_check=pause_check,
+                    tile_store=effective_store,
+                    stage_id=stage_id
+                )
+                if effective_store and stage_id:
+                    effective_store.update_stage_status(stage_id, "completed")
+                    effective_store.cleanup_stage(stage_id)
+            except JobPausedException:
+                if effective_store and stage_id:
+                    effective_store.update_stage_status(stage_id, "paused")
+                raise
+            except Exception as e:
+                if effective_store and stage_id:
+                    err_str = str(e).lower()
+                    if "cancel" in err_str:
+                        effective_store.cleanup_stage(stage_id)
+                    else:
+                        effective_store.update_stage_status(stage_id, "failed")
+                raise e
 
             # Post-sharpen if in restore_upscale mode or configured by preset (e.g. more_detail)
             sharpen_amount = float(preset_cfg.get("sharpen_amount", 0.30))

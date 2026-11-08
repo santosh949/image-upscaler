@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import subprocess
 import re
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 from PIL import Image
 from ai_engine.models.base import ModelAdapter
 
@@ -116,7 +116,8 @@ class NCNNRealESRGANAdapter(ModelAdapter):
         tile_size: int = 0,
         gpu_id: int = 0,
         model_name: str = "realesrgan-x4plus",
-        cancel_token: Optional[Any] = None
+        cancel_token: Optional[Any] = None,
+        cancel_check: Optional[Callable[[], bool]] = None
     ) -> Dict[str, Any]:
         if not os.path.isfile(input_path):
             raise FileNotFoundError(f"Input file not found: {input_path}")
@@ -154,11 +155,18 @@ class NCNNRealESRGANAdapter(ModelAdapter):
         )
 
         try:
+            while True:
+                ret = self.current_process.poll()
+                if ret is not None:
+                    break
+                if cancel_check and cancel_check():
+                    self.cancel()
+                    raise RuntimeError("Inference cancelled by user")
+                time.sleep(0.05)
             stdout, stderr = self.current_process.communicate()
             returncode = self.current_process.returncode
         except Exception as e:
-            if self.current_process:
-                self.current_process.kill()
+            self.cancel()
             raise e
         finally:
             self.current_process = None
@@ -197,11 +205,13 @@ class NCNNRealESRGANAdapter(ModelAdapter):
         scale: int = 4,
         tile_size: int = 0,
         gpu_id: int = 0,
-        model_name: str = "realesrgan-x4plus"
+        model_name: str = "realesrgan-x4plus",
+        cancel_check: Optional[Callable[[], bool]] = None
     ) -> List[str]:
         """
         Executes NCNN inference across multiple image tiles in a single process.
         Avoids reloading neural network weights per tile.
+        Actively monitors cancel_check every 50ms and kills subprocess on request.
         """
         if not input_paths:
             return []
@@ -233,9 +243,32 @@ class NCNNRealESRGANAdapter(ModelAdapter):
                 "-v"
             ]
 
-            proc = subprocess.run(cmd, capture_output=True, text=True)
-            if proc.returncode != 0:
-                raise RuntimeError(f"Batch NCNN inference failed with exit code {proc.returncode}. Stderr: {proc.stderr}")
+            self.current_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+
+            try:
+                while True:
+                    ret = self.current_process.poll()
+                    if ret is not None:
+                        break
+                    if cancel_check and cancel_check():
+                        self.cancel()
+                        raise RuntimeError("Inference cancelled by user")
+                    time.sleep(0.05)
+                stdout, stderr = self.current_process.communicate()
+                returncode = self.current_process.returncode
+            except Exception as e:
+                self.cancel()
+                raise e
+            finally:
+                self.current_process = None
+
+            if returncode != 0:
+                raise RuntimeError(f"Batch NCNN inference failed with exit code {returncode}. Stderr: {stderr}")
 
             for stem, final_out_path in name_map.items():
                 out_candidate = os.path.join(batch_out_dir, f"{stem}.png")
@@ -252,8 +285,15 @@ class NCNNRealESRGANAdapter(ModelAdapter):
         return output_paths
 
     def cancel(self) -> None:
-        if self.current_process and self.current_process.poll() is None:
-            self.current_process.kill()
+        proc = self.current_process
+        if proc and proc.poll() is None:
+            try:
+                proc.kill()
+                proc.wait(timeout=2.0)
+            except Exception:
+                pass
+            finally:
+                self.current_process = None
 
     def unload(self) -> None:
         self.cancel()

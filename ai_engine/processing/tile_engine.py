@@ -274,6 +274,8 @@ class TileEngine:
                         if tile_store and stage_id:
                             tile_store.save_tile(stage_id, gx, gy, up_tile)
                             completed_tiles[(gx, gy)] = f"{stage_id}_{gx}_{gy}.png"
+                    if pause_check and pause_check():
+                        raise JobPausedException("Job paused by user")
                 elif infer_fn:
                     for t in needed_in_chunk:
                         if cancel_check and cancel_check():

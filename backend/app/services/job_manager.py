@@ -99,10 +99,14 @@ class JobManager:
             }
 
     def pause_job(self, job_id: str) -> bool:
-        """Sets pause flag so worker exits cleanly after current tile."""
+        """Sets pause flag so worker exits cleanly after current tile/batch."""
         job = get_job(job_id)
         if not job or job["status"] not in ("processing", "queued"):
             return False
+
+        if job["status"] == "queued":
+            update_job_status(job_id, status="paused", stage="paused", message="Job paused in queue")
+            return True
 
         pause_file = self._get_pause_file(job_id)
         with open(pause_file, "w") as f:
@@ -110,14 +114,26 @@ class JobManager:
 
         proc = self.active_processes.get(job_id)
         if proc:
-            # Give worker 2 seconds to complete tile and exit cleanly
+            # Give worker time to complete the active batch and save checkpoints
             try:
-                proc.wait(timeout=2.0)
+                proc.wait(timeout=10.0)
             except subprocess.TimeoutExpired:
-                proc.terminate()
+                # If it exceeds 10s, terminate cleanly with child tree termination
+                import psutil
+                try:
+                    p = psutil.Process(proc.pid)
+                    for child in p.children(recursive=True):
+                        child.terminate()
+                    p.terminate()
+                    proc.wait(timeout=2.0)
+                except Exception:
+                    proc.kill()
             self.active_processes.pop(job_id, None)
 
-        update_job_status(job_id, status="paused", stage="paused", message="Job paused at tile checkpoint")
+        # Confirm the job reached paused status
+        latest = get_job(job_id)
+        if latest and latest["status"] != "paused":
+            update_job_status(job_id, status="paused", stage="paused", message="Job paused at tile checkpoint")
         return True
 
     def resume_job(self, job_id: str) -> bool:
@@ -151,11 +167,19 @@ class JobManager:
 
         proc = self.active_processes.get(job_id)
         if proc and proc.poll() is None:
-            proc.terminate()
+            # Active cancel check will terminate the NCNN subprocess in worker within ~50ms
             try:
-                proc.wait(timeout=2.0)
+                proc.wait(timeout=3.0)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                # Recursively kill any orphaned child processes (e.g. realesrgan-ncnn-vulkan.exe)
+                import psutil
+                try:
+                    p = psutil.Process(proc.pid)
+                    for child in p.children(recursive=True):
+                        child.kill()
+                    p.kill()
+                except Exception:
+                    proc.kill()
             self.active_processes.pop(job_id, None)
 
         # Cleanup output if partial

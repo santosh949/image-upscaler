@@ -32,9 +32,41 @@ class TileStore:
         to_size: Tuple[int, int],
         tile_grid: List[Dict[str, Any]]
     ) -> None:
-        """Initializes stage and creates pending tile tracking entries."""
+        """
+        Initializes stage and creates pending tile tracking entries.
+        Validates checkpoint compatibility: if stage exists with different
+        model, resolution, or tile layout, purges invalid checkpoints.
+        """
         stage_dir = self.get_stage_dir(stage_id)
+        from_str = f"{from_size[0]}x{from_size[1]}"
+        to_str = f"{to_size[0]}x{to_size[1]}"
+        grid_count_str = str(len(tile_grid))
+
         with get_db_connection() as conn:
+            existing = conn.execute("SELECT * FROM stages WHERE stage_id = ?", (stage_id,)).fetchone()
+            if existing:
+                is_compatible = (
+                    existing["job_id"] == job_id
+                    and existing["model"] == model
+                    and existing["from_size"] == from_str
+                    and existing["to_size"] == to_str
+                    and existing["tile_grid"] == grid_count_str
+                )
+                if not is_compatible:
+                    # Configuration changed: purge incompatible tiles and records
+                    conn.execute("DELETE FROM tiles WHERE stage_id = ?", (stage_id,))
+                    if os.path.exists(stage_dir):
+                        for f in os.listdir(stage_dir):
+                            try:
+                                os.remove(os.path.join(stage_dir, f))
+                            except Exception:
+                                pass
+                else:
+                    # Compatible: update stage to running and keep verified completed tiles
+                    conn.execute("UPDATE stages SET status = 'running' WHERE stage_id = ?", (stage_id,))
+                    conn.commit()
+                    return
+
             conn.execute("""
                 INSERT OR REPLACE INTO stages (
                     stage_id, job_id, stage_index, operation, model,
@@ -46,10 +78,10 @@ class TileStore:
                 stage_index,
                 operation,
                 model,
-                f"{from_size[0]}x{from_size[1]}",
-                f"{to_size[0]}x{to_size[1]}",
+                from_str,
+                to_str,
                 "running",
-                str(len(tile_grid)),
+                grid_count_str,
                 None
             ))
 

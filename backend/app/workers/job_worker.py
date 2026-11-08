@@ -144,6 +144,8 @@ def process_job(job_id: str) -> None:
                 tile_size=256,
                 progress_cb=worker_progress_callback,
                 cancel_check=lambda: job_manager.is_cancelled(job_id),
+                pause_check=lambda: job_manager.is_paused(job_id),
+                job_id=job_id,
                 format_name=output_format,
                 quality=quality,
                 preset=preset_name,

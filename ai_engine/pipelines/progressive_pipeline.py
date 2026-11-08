@@ -134,7 +134,8 @@ class ProgressivePipeline:
                         scale=ncnn_scale,
                         tile_size=tile_size,
                         gpu_id=gpu_id,
-                        model_name=model_name
+                        model_name=model_name,
+                        cancel_check=cancel_check
                     )
                     return Image.open(temp_out_path).copy()
                 finally:
@@ -163,7 +164,8 @@ class ProgressivePipeline:
                         scale=ncnn_scale,
                         tile_size=tile_size,
                         gpu_id=gpu_id,
-                        model_name=model_name
+                        model_name=model_name,
+                        cancel_check=cancel_check
                     )
 
                     results = []

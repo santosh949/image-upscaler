@@ -94,6 +94,36 @@ This project is built as a **free, local desktop studio** that directly adapts t
 
 ---
 
+## 🖥️ Hardware Requirements & Maximum Processing Limits
+
+### Hardware Specifications
+
+| Component | Minimum Requirements (Budget / Laptop) | Recommended Setup (High Performance) |
+| :--- | :--- | :--- |
+| **Operating System** | Windows 10/11 (64-bit), Ubuntu 20.04+ LTS, macOS (MoltenVK) | Windows 11 (64-bit) or Modern Linux x86_64 |
+| **Processor (CPU)** | Intel Core i3 (8th Gen+) or AMD Ryzen 3 (1000 series+), 4 cores | Intel Core i5/i7 (11th Gen+) or AMD Ryzen 5/7, 6+ cores |
+| **System Memory (RAM)** | **8 GB DDR4** (with $\ge$ 4 GB free available memory) | **16 GB DDR4/DDR5** or higher |
+| **Graphics (GPU)** | **Vulkan 1.1+ Compatible**: NVIDIA GTX 960 / RTX 2050 Mobile / AMD RX 550 / Intel Iris Xe | **NVIDIA GeForce RTX 3060 / 4050 / 4060+** (6 GB – 8 GB+ VRAM) |
+| **Video Memory (VRAM)** | **2 GB – 4 GB VRAM** (utilizes micro-tiling) | **6 GB – 8 GB+ VRAM** |
+| **Disk Space** | 2 GB free space for binaries and model checkpoints | NVMe SSD recommended for fast tile I/O |
+
+---
+
+### Maximum Processing & Resolution Limits
+
+Because this application incorporates a **dynamic micro-tiling streaming engine**, the maximum resolution is not bounded by raw GPU VRAM size:
+
+| Scale Mode | Target Output Resolution | Total Pixels | Processing Strategy | Tested Hardware Tier |
+| :--- | :--- | :--- | :--- | :--- |
+| **Standard Upscale (2× / 4×)** | Up to 4K UHD ($3840 \times 2160$) | **8.29 Megapixels** | Direct neural pass or single-pass 512px tiling | 4 GB VRAM (RTX 2050/3050) / 8 GB RAM |
+| **Progressive 8K Engine** | **8K UHD ($7680 \times 4320$)** | **33.18 Megapixels** | 2D Hann-feathered micro-tile streaming (zero edge seams) | **4 GB VRAM / 8 GB RAM** (Verified) |
+| **Architectural Hard Limit** | **Up to $8192 \times 8192$** | **67.11 Megapixels** | Multi-pass staged tile stitching | 6 GB+ VRAM / 16 GB RAM |
+| **Batch Queue Capacity** | **Unlimited sequential queue** (20+ images per batch) | Single-worker sequential dispatching avoids VRAM stacking | Any supported hardware |
+
+> 🛡️ **Built-in Safety Preflight Planner**: Before processing begins, the backend measures image dimensions and estimates the exact RAM, VRAM, and temporary disk storage required. If an operation would exceed your available memory, the planner automatically switches to staged micro-tiling or alerts you before execution, preventing system lockups and GPU crash loops.
+
+---
+
 ## ⚡ Quick Start
 
 ### Prerequisites

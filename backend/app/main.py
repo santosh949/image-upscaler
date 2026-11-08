@@ -11,10 +11,9 @@ from backend.app.api.projects import router as projects_router
 from backend.app.api.versions import router as versions_router
 from backend.app.api.resolution import router as resolution_router
 
-init_db()
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     job_manager.start_dispatcher()
     yield
     job_manager.stop_dispatcher()

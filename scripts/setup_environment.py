@@ -42,12 +42,17 @@ def setup():
                 pass
     print("✔ Storage directories initialized.")
 
+    models_dir = os.path.join(TOOLS_DIR, "models")
     os.makedirs(TOOLS_DIR, exist_ok=True)
+    os.makedirs(models_dir, exist_ok=True)
     os.makedirs(WEIGHTS_DIR, exist_ok=True)
 
     exe_path = os.path.join(TOOLS_DIR, BINARY_NAME)
-    if os.path.isfile(exe_path):
-        print(f"✔ Real-ESRGAN NCNN Vulkan binary already present: {exe_path}")
+    has_models = os.path.isfile(os.path.join(models_dir, "realesrgan-x4plus.bin"))
+    if os.path.isfile(exe_path) and has_models:
+        print(f"✔ Real-ESRGAN NCNN Vulkan binary and models already present:")
+        print(f"  Binary: {exe_path}")
+        print(f"  Models: {models_dir}")
         return
 
     # 2. Download official NCNN release
@@ -67,17 +72,22 @@ def setup():
 
         with zipfile.ZipFile(temp_zip, "r") as z:
             for member in z.infolist():
-                filename = os.path.basename(member.filename)
-                if not filename:
+                if member.is_dir():
                     continue
-                # Extract exe, dll, so, dylib, and models into tools dir
-                target_path = os.path.join(TOOLS_DIR, filename)
-                with z.open(member) as source, open(target_path, "wb") as target:
-                    shutil.copyfileobj(source, target)
-                
-                # Copy model files to weights/
-                if filename.endswith(".bin") or filename.endswith(".param"):
-                    shutil.copy(target_path, os.path.join(WEIGHTS_DIR, filename))
+                norm_name = member.filename.replace("\\", "/")
+                basename = os.path.basename(norm_name)
+                if not basename:
+                    continue
+
+                if "/models/" in norm_name or norm_name.startswith("models/") or basename.endswith(".bin") or basename.endswith(".param"):
+                    target_path = os.path.join(models_dir, basename)
+                    with z.open(member) as source, open(target_path, "wb") as target:
+                        shutil.copyfileobj(source, target)
+                    shutil.copy(target_path, os.path.join(WEIGHTS_DIR, basename))
+                else:
+                    target_path = os.path.join(TOOLS_DIR, basename)
+                    with z.open(member) as source, open(target_path, "wb") as target:
+                        shutil.copyfileobj(source, target)
 
         if os.path.exists(temp_zip):
             os.remove(temp_zip)
@@ -85,7 +95,7 @@ def setup():
         if os.path.isfile(exe_path) and not sys.platform.startswith("win"):
             os.chmod(exe_path, 0o755)
 
-        print(f"✔ Successfully installed Real-ESRGAN NCNN Vulkan binaries and weights.")
+        print(f"✔ Successfully installed Real-ESRGAN NCNN Vulkan binaries and weights to {models_dir}")
         print("Setup complete! You can now start the server:")
         print("  python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000")
 

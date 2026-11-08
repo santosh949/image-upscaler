@@ -16,7 +16,7 @@ from ai_engine.processing.consistency import ConsistencyChecker
 
 class VersionService:
     """
-    Business logic for the Version Graph (Part E).
+    Business logic for the Version Graph.
     Enforces immutable versioning, parent provenance chains,
     authoritative JSON manifests, and acceptance/rejection semantics.
     """
@@ -83,7 +83,7 @@ class VersionService:
     ) -> Dict[str, Any]:
         """
         Registers an enhanced output as an immutable child version in the project DAG.
-        Enforces Invariant E2.1 (read-only), E2.2 (never overwrite parent), E4 (manifest).
+        Enforces read-only permissions, parent immutability, and provenance manifests.
         """
         parent = get_version(parent_version_id)
         if not parent:
@@ -99,7 +99,7 @@ class VersionService:
         mp = round((w * h) / 1_000_000.0, 2)
         sha256 = storage_service.compute_sha256(output_image_path)
 
-        # Invariant E2.1: Mark file read-only once ready
+        # Mark file read-only once ready
         try:
             os.chmod(output_image_path, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
         except Exception:

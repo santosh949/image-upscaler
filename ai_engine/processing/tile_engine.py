@@ -244,90 +244,104 @@ class TileEngine:
         if tile_store and stage_id:
             completed_tiles = tile_store.get_completed_tiles(stage_id)
 
-        # Batch optimization: if batch_infer_fn is provided, infer all uncompleted tiles in one shot
-        batch_cache = {}
-        if batch_infer_fn:
-            missing_tiles = [t for t in tiles if (t["gx"], t["gy"]) not in completed_tiles]
-            if missing_tiles:
-                if cancel_check and cancel_check():
-                    raise RuntimeError("Job cancelled by user")
-                crops = [img.crop(t["box"]) for t in missing_tiles]
-                upscaled_batch = batch_infer_fn(crops)
-                for t, up_tile in zip(missing_tiles, upscaled_batch):
-                    gx, gy = t["gx"], t["gy"]
-                    batch_cache[(gx, gy)] = up_tile
-                    if tile_store and stage_id:
-                        tile_store.save_tile(stage_id, gx, gy, up_tile)
-
-        for idx, t in enumerate(tiles):
+        # Process in chunks of 8 tiles: enables high-throughput batching while maintaining
+        # responsive progress callbacks, chunk-level TileStore checkpointing, and fast pause/cancel checks.
+        chunk_size = 8
+        for i in range(0, total_tiles, chunk_size):
             if cancel_check and cancel_check():
                 raise RuntimeError("Job cancelled by user")
             if pause_check and pause_check():
                 raise JobPausedException("Job paused by user")
 
-            gx, gy = t["gx"], t["gy"]
-            x1, y1, x2, y2 = t["box"]
+            chunk = tiles[i:i + chunk_size]
+            needed_in_chunk = []
+            chunk_results = {}
 
-            exp_tw = int(round((x2 - x1) * eff_scale))
-            exp_th = int(round((y2 - y1) * eff_scale))
-            ox1 = int(round(x1 * eff_scale))
-            oy1 = int(round(y1 * eff_scale))
-            ox2 = min(out_w, ox1 + exp_tw)
-            oy2 = min(out_h, oy1 + exp_th)
-            act_w = ox2 - ox1
-            act_h = oy2 - oy1
+            for t in chunk:
+                gx, gy = t["gx"], t["gy"]
+                if (gx, gy) in completed_tiles:
+                    chunk_results[(gx, gy)] = tile_store.load_tile(completed_tiles[(gx, gy)])
+                else:
+                    needed_in_chunk.append(t)
 
-            if (gx, gy) in completed_tiles:
-                tile_out = tile_store.load_tile(completed_tiles[(gx, gy)])
-            elif (gx, gy) in batch_cache:
-                tile_out = batch_cache[(gx, gy)]
-            else:
-                tile_in = img.crop((x1, y1, x2, y2))
-                if infer_fn:
-                    tile_out = infer_fn(tile_in)
+            if needed_in_chunk:
+                if batch_infer_fn:
+                    crops = [img.crop(t["box"]) for t in needed_in_chunk]
+                    upscaled_chunk = batch_infer_fn(crops)
+                    for t, up_tile in zip(needed_in_chunk, upscaled_chunk):
+                        gx, gy = t["gx"], t["gy"]
+                        chunk_results[(gx, gy)] = up_tile
+                        if tile_store and stage_id:
+                            tile_store.save_tile(stage_id, gx, gy, up_tile)
+                            completed_tiles[(gx, gy)] = f"{stage_id}_{gx}_{gy}.png"
+                elif infer_fn:
+                    for t in needed_in_chunk:
+                        if cancel_check and cancel_check():
+                            raise RuntimeError("Job cancelled by user")
+                        if pause_check and pause_check():
+                            raise JobPausedException("Job paused by user")
+                        gx, gy = t["gx"], t["gy"]
+                        x1, y1, x2, y2 = t["box"]
+                        up_tile = infer_fn(img.crop((x1, y1, x2, y2)))
+                        chunk_results[(gx, gy)] = up_tile
+                        if tile_store and stage_id:
+                            tile_store.save_tile(stage_id, gx, gy, up_tile)
+                            completed_tiles[(gx, gy)] = f"{stage_id}_{gx}_{gy}.png"
                 else:
                     raise ValueError("No inference function available for tile")
 
-                if tile_store and stage_id:
-                    tile_store.save_tile(stage_id, gx, gy, tile_out)
+            # Stitch each tile from this chunk into accum and weights, then discard from chunk memory
+            for sub_idx, t in enumerate(chunk):
+                if cancel_check and cancel_check():
+                    raise RuntimeError("Job cancelled by user")
+                if pause_check and pause_check():
+                    raise JobPausedException("Job paused by user")
 
-            # Ensure expected adapted dimensions
-            if tile_out.size != (exp_tw, exp_th):
-                tile_out = tile_out.resize((exp_tw, exp_th), Image.Resampling.LANCZOS)
+                gx, gy = t["gx"], t["gy"]
+                x1, y1, x2, y2 = t["box"]
+                tile_out = chunk_results[(gx, gy)]
 
-                if tile_store and stage_id:
-                    tile_store.save_tile(stage_id, gx, gy, tile_out)
+                exp_tw = int(round((x2 - x1) * eff_scale))
+                exp_th = int(round((y2 - y1) * eff_scale))
+                ox1 = int(round(x1 * eff_scale))
+                oy1 = int(round(y1 * eff_scale))
+                ox2 = min(out_w, ox1 + exp_tw)
+                oy2 = min(out_h, oy1 + exp_th)
+                act_w = ox2 - ox1
+                act_h = oy2 - oy1
 
-            # Crop if slightly exceeding boundary due to rounding
-            if tile_out.size != (act_w, act_h):
-                tile_out = tile_out.crop((0, 0, act_w, act_h))
+                if tile_out.size != (exp_tw, exp_th):
+                    tile_out = tile_out.resize((exp_tw, exp_th), Image.Resampling.LANCZOS)
+                if tile_out.size != (act_w, act_h):
+                    tile_out = tile_out.crop((0, 0, act_w, act_h))
 
-            tile_arr = np.array(tile_out, dtype=np.float32)
-            if tile_arr.ndim == 2:
-                tile_arr = np.stack([tile_arr] * num_channels, axis=-1)
-            elif tile_arr.shape[2] != num_channels:
-                if num_channels == 3 and tile_arr.shape[2] == 4:
-                    tile_arr = tile_arr[:, :, :3]
-                elif num_channels == 4 and tile_arr.shape[2] == 3:
-                    alpha = np.full((act_h, act_w, 1), 255.0, dtype=np.float32)
-                    tile_arr = np.concatenate([tile_arr, alpha], axis=-1)
+                tile_arr = np.array(tile_out, dtype=np.float32)
+                if tile_arr.ndim == 2:
+                    tile_arr = np.stack([tile_arr] * num_channels, axis=-1)
+                elif tile_arr.shape[2] != num_channels:
+                    if num_channels == 3 and tile_arr.shape[2] == 4:
+                        tile_arr = tile_arr[:, :, :3]
+                    elif num_channels == 4 and tile_arr.shape[2] == 3:
+                        alpha = np.full((act_h, act_w, 1), 255.0, dtype=np.float32)
+                        tile_arr = np.concatenate([tile_arr, alpha], axis=-1)
 
-            # Compute feathered mask for this tile
-            w2d = self.compute_feather_window(
-                height=act_h,
-                width=act_w,
-                is_top=t["is_top"],
-                is_bottom=t["is_bottom"],
-                is_left=t["is_left"],
-                is_right=t["is_right"],
-                overlap=out_overlap
-            )[:, :, None]
+                w2d = self.compute_feather_window(
+                    height=act_h,
+                    width=act_w,
+                    is_top=t["is_top"],
+                    is_bottom=t["is_bottom"],
+                    is_left=t["is_left"],
+                    is_right=t["is_right"],
+                    overlap=out_overlap
+                )[:, :, None]
 
-            accum[oy1:oy2, ox1:ox2] += (tile_arr * w2d)
-            weights[oy1:oy2, ox1:ox2] += w2d
+                accum[oy1:oy2, ox1:ox2] += (tile_arr * w2d)
+                weights[oy1:oy2, ox1:ox2] += w2d
 
-            if progress_cb:
-                progress_cb(idx + 1, total_tiles)
+                if progress_cb:
+                    progress_cb(i + sub_idx + 1, total_tiles)
+
+            del chunk_results
 
         # Normalize and construct final output
         norm_result = accum / np.maximum(weights, 1e-6)

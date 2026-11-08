@@ -220,7 +220,7 @@ def list_projects(limit: int = 50) -> List[Dict[str, Any]]:
         return [dict(r) for r in rows]
 
 def create_version(version_data: Dict[str, Any]) -> None:
-    """Enforces Invariant E2.2: A job never writes into a version it reads from."""
+    """Creates a new version node in the version DAG. A job never writes into a version it reads from."""
     now = time.time()
     with get_db_connection() as conn:
         conn.execute("""
@@ -287,7 +287,7 @@ def get_child_versions(parent_version_id: str) -> List[Dict[str, Any]]:
         return [dict(r) for r in rows]
 
 def update_version_decision(version_id: str, decision: str) -> bool:
-    """Invariant E2.4 & E2.5: accept or reject."""
+    """Updates user decision state: accept, reject, or pending."""
     if decision not in ("accepted", "rejected", "pending"):
         raise ValueError(f"Invalid decision: {decision}")
     with get_db_connection() as conn:
@@ -297,7 +297,7 @@ def update_version_decision(version_id: str, decision: str) -> bool:
 
 def delete_version_with_rules(version_id: str, force_subtree: bool = False) -> Dict[str, Any]:
     """
-    Invariant E2.6:
+    Subtree deletion rules:
     - Deleting a version that has children is blocked unless force_subtree=True.
     - The original version is protected: deleting it requires explicit confirmation and cannot have children unless subtree deleted.
     """

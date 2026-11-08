@@ -52,12 +52,14 @@ class RestorationEngine:
     def restore(
         cls,
         img: Image.Image,
-        noise_score: float = 5.0,
-        has_jpeg_artifacts: bool = True,
-        apply_sharpen: bool = True
+        noise_score: float = 0.0,
+        has_jpeg_artifacts: bool = False,
+        apply_sharpen: bool = False
     ) -> Image.Image:
         """
         Full restoration pipeline on RGB image.
+        Adaptive to degradation signals: skips denoising when noise_score <= 0
+        to preserve natural human skin texture, pores, and fine hair strands.
         """
         rgb = img.convert("RGB")
         arr = np.array(rgb, dtype=np.uint8)
@@ -66,12 +68,13 @@ class RestorationEngine:
         if has_jpeg_artifacts:
             arr = cls.deblock_jpeg(arr, strength=0.8)
 
-        # 2. Adaptive denoise
-        arr = cls.denoise_adaptive(arr, noise_score=noise_score)
+        # 2. Adaptive denoise ONLY when noise is detected (> 1.0)
+        if noise_score > 1.0:
+            arr = cls.denoise_adaptive(arr, noise_score=noise_score)
 
         # 3. Restrained unsharp mask
         if apply_sharpen:
-            arr = cls.mild_unsharp_mask(arr, amount=0.35, radius=0.8)
+            arr = cls.mild_unsharp_mask(arr, amount=0.30, radius=0.8)
 
         return Image.fromarray(arr, mode="RGB")
 

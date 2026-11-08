@@ -54,7 +54,7 @@ class UpscaleVersionRequest(BaseModel):
 def get_resolution_plan(project_id: str, req: PlanRequest):
     """
     Computes optimal upscale strategy (Plan A vs Plan B vs Plan C) with resource preflight
-    and quality warnings (Part F1-F4).
+    and quality warnings.
     """
     source_ver_id = req.source_version_id
     if not source_ver_id:
@@ -92,7 +92,7 @@ def upscale_from_version(
 ):
     """
     Spawns progressive upscale job directly from an existing version's on-disk image
-    without requiring a browser upload round-trip (Part F4 & Invariant E2).
+    without requiring a browser upload round-trip.
     """
     version = get_version(version_id)
     if not version:

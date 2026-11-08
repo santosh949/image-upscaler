@@ -7,7 +7,7 @@ from backend.app.core.config import settings
 class MigrationService:
     """
     Applies forward-only database schema migrations with automated pre-migration backup.
-    Guarantees legacy jobs and existing records continue functioning seamlessly (Part E2a).
+    Guarantees legacy jobs and existing records continue functioning seamlessly.
     """
 
     @staticmethod

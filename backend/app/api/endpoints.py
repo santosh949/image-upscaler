@@ -127,15 +127,27 @@ async def upload_image(file: UploadFile = File(...)):
     save_filename = f"{img_id}{ext}"
     dest_path = os.path.join(settings.STORAGE_ROOT, "uploads", save_filename)
 
-    contents = await file.read()
-    if len(contents) > MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Upload exceeds maximum allowed size of {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB."
-        )
-
-    with open(dest_path, "wb") as f:
-        f.write(contents)
+    total_size = 0
+    try:
+        with open(dest_path, "wb") as f:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > MAX_UPLOAD_SIZE_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Upload exceeds maximum allowed size of {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB."
+                    )
+                f.write(chunk)
+    except Exception as e:
+        if os.path.exists(dest_path):
+            try:
+                os.remove(dest_path)
+            except Exception:
+                pass
+        raise e
 
     # Validate image via Pillow
     try:
@@ -156,7 +168,7 @@ async def upload_image(file: UploadFile = File(...)):
         w=w,
         h=h,
         fmt=fmt,
-        size=len(contents)
+        size=total_size
     )
 
     return ImageUploadResponse(
@@ -165,7 +177,7 @@ async def upload_image(file: UploadFile = File(...)):
         width=w,
         height=h,
         format=fmt,
-        size_bytes=len(contents)
+        size_bytes=total_size
     )
 
 @router.post("/images/batch", response_model=List[ImageUploadResponse])
@@ -179,9 +191,27 @@ async def upload_images_batch(files: List[UploadFile] = File(...)):
 
         save_filename = f"{img_id}{ext}"
         dest_path = os.path.join(settings.STORAGE_ROOT, "uploads", save_filename)
-        contents = await file.read()
-        with open(dest_path, "wb") as f:
-            f.write(contents)
+        total_size = 0
+        try:
+            with open(dest_path, "wb") as f:
+                while True:
+                    chunk = await file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total_size += len(chunk)
+                    if total_size > MAX_UPLOAD_SIZE_BYTES:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"File {file.filename} exceeds maximum allowed size of {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB."
+                        )
+                    f.write(chunk)
+        except Exception:
+            if os.path.exists(dest_path):
+                try:
+                    os.remove(dest_path)
+                except Exception:
+                    pass
+            continue
 
         try:
             with Image.open(dest_path) as img:
@@ -189,7 +219,7 @@ async def upload_images_batch(files: List[UploadFile] = File(...)):
                 fmt = img.format or "UNKNOWN"
                 if w * h > settings.MAX_OUTPUT_MEGAPIXELS * 1_000_000:
                     raise ValueError("Dimensions exceed safety cap.")
-        except Exception as e:
+        except Exception:
             if os.path.exists(dest_path):
                 os.remove(dest_path)
             continue
@@ -201,7 +231,7 @@ async def upload_images_batch(files: List[UploadFile] = File(...)):
             w=w,
             h=h,
             fmt=fmt,
-            size=len(contents)
+            size=total_size
         )
         results.append(ImageUploadResponse(
             image_id=img_id,
@@ -209,7 +239,7 @@ async def upload_images_batch(files: List[UploadFile] = File(...)):
             width=w,
             height=h,
             format=fmt,
-            size_bytes=len(contents)
+            size_bytes=total_size
         ))
     return results
 
@@ -273,6 +303,19 @@ def create_upscale_job(req: JobCreateRequest, background_tasks: BackgroundTasks)
     job_id = str(uuid.uuid4())
     crop_json = json.dumps(req.crop_region) if req.crop_region else None
 
+    # Merge recommended_parameters into plan_json for worker consumption
+    plan_dict = {}
+    if req.plan_json:
+        try:
+            plan_dict = json.loads(req.plan_json)
+        except Exception:
+            pass
+    if req.recommended_parameters:
+        for k, v in req.recommended_parameters.items():
+            if k not in plan_dict:
+                plan_dict[k] = v
+    effective_plan_json = json.dumps(plan_dict) if plan_dict else None
+
     create_job(
         job_id=job_id,
         image_id=req.image_id,
@@ -283,7 +326,7 @@ def create_upscale_job(req: JobCreateRequest, background_tasks: BackgroundTasks)
         crop_region=crop_json,
         output_format=req.output_format,
         quality=req.quality,
-        plan_json=req.plan_json,
+        plan_json=effective_plan_json,
         preset=req.preset
     )
 
@@ -571,8 +614,7 @@ def download_batch_zip(req: BatchZipRequest, background_tasks: BackgroundTasks):
                     continue
                 out_path = os.path.abspath(job["output_path"])
                 storage_root = os.path.abspath(settings.STORAGE_ROOT)
-                temp_root = os.path.abspath(tempfile.gettempdir())
-                if not (out_path.startswith(storage_root) or out_path.startswith(temp_root)) or not os.path.isfile(out_path):
+                if not out_path.startswith(storage_root) or not os.path.isfile(out_path):
                     continue
 
                 filename = os.path.basename(out_path)

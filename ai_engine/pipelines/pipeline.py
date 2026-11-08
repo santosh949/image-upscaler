@@ -39,14 +39,15 @@ class EnhancementPipeline:
         cancel_check: Optional[Callable[[], bool]] = None,
         format_name: str = "PNG",
         quality: int = 95,
-        preset: Optional[str] = "natural"
+        preset: Optional[str] = "natural",
+        overrides: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         start_time = time.perf_counter()
         if not os.path.isfile(input_path):
             raise FileNotFoundError(f"Input file not found: {input_path}")
 
         from backend.app.services.preset_service import preset_service
-        preset_cfg = preset_service.resolve(preset)
+        preset_cfg = preset_service.resolve(preset, overrides=overrides)
         pre_denoise = preset_cfg.get("pre_denoise", "none")
         post_sharpen = preset_cfg.get("post_sharpen", "off")
         blend_weight = float(preset_cfg.get("texture_blend_weight", 0.0))
@@ -189,7 +190,7 @@ class EnhancementPipeline:
                     progress_cb(3, 4, "Post-sharpening refinement")
                 final_rgb = RestorationEngine.restore(
                     upscaled,
-                    noise_score=1.0,
+                    noise_score=0.0,
                     has_jpeg_artifacts=False,
                     apply_sharpen=True
                 )

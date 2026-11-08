@@ -277,6 +277,9 @@ export default function App() {
         // Automatically suggest category from analysis
         if (analysis.analysis.has_alpha) {
           setSelectedTask('transparent');
+        } else if (analysis.analysis.detected_category === 'manga') {
+          setSelectedTask('anime');
+          setSelectedPreset('manga_crisp');
         } else if (analysis.analysis.detected_category.includes('anime')) {
           setSelectedTask('anime');
           setSelectedPreset('artwork');

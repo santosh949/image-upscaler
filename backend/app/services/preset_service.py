@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional
 
 class PresetService:
     """
-    Loads authoritative presets configuration (Part K4 & V3 Addendum §6).
+    Loads authoritative presets configuration.
     Couples plain-language presets to concrete backend execution parameters.
     """
 

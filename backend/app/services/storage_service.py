@@ -11,7 +11,7 @@ from backend.app.core.config import settings
 class StorageService:
     """
     Manages immutable artifact storage, atomic file operations,
-    cryptographic SHA-256 verification, and startup orphan reconciliation per Part E.
+    cryptographic SHA-256 verification, and startup orphan reconciliation.
     """
 
     def __init__(self, root_dir: Optional[str] = None):
@@ -38,7 +38,7 @@ class StorageService:
         return h.hexdigest()
 
     def check_disk_space(self, estimated_bytes: int) -> bool:
-        """Enforces Part C3: free disk >= required * 1.25."""
+        """Enforces free disk space requirement: free disk >= required * 1.25."""
         usage = shutil.disk_usage(self.root_dir)
         required = estimated_bytes * 1.25
         if usage.free < required:
@@ -56,7 +56,7 @@ class StorageService:
         quality: int = 95
     ) -> str:
         """
-        Atomic Write Protocol (Part C2.7 & E2.3):
+        Atomic Write Protocol:
         1. Write to *.partial
         2. Flush & fsync
         3. Compute SHA256
@@ -91,7 +91,7 @@ class StorageService:
         # Atomic move
         os.replace(partial_path, target_path)
 
-        # Invariant E2.1: Mark file read-only once ready
+        # Mark file read-only once ready
         try:
             os.chmod(target_path, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
         except Exception:
@@ -100,7 +100,7 @@ class StorageService:
         return sha256_hash
 
     def write_manifest(self, version_id: str, manifest_data: Dict[str, Any]) -> str:
-        """Writes authoritative provenance manifest JSON (Part E4)."""
+        """Writes authoritative provenance manifest JSON."""
         manifest_path = os.path.join(self.manifests_dir, f"{version_id}.json")
         partial_path = f"{manifest_path}.partial"
 
@@ -114,7 +114,7 @@ class StorageService:
 
     def reconcile_startup(self, verify_version_fn: Optional[Callable[[str], bool]] = None) -> Dict[str, int]:
         """
-        Startup Reconciliation (Part E2.3):
+        Startup Reconciliation:
         - Deletes *.partial orphans in all storage directories.
         - Never deletes valid files referenced by DB.
         """

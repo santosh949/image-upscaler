@@ -15,7 +15,7 @@ from ai_engine.memory.memory_manager import memory_manager
 from backend.app.core.config import settings
 
 class VRAMTracker:
-    def __init__(self, interval: float = 0.05):
+    def __init__(self, interval: float = 0.20):
         self.interval = interval
         self.stop_event = threading.Event()
         self.peak_vram_mb = 0.0
@@ -85,6 +85,7 @@ def run_benchmarks():
         {"name": "256x256 (Restore)", "w": 256, "h": 256, "mode": "restore", "model": "classical", "scale": 1},
         {"name": "256x256 (Combined)", "w": 256, "h": 256, "mode": "restore_upscale", "model": "realesrgan-x4plus", "scale": 4},
         {"name": "512x512 (Medium Tiled)", "w": 512, "h": 512, "mode": "upscale", "model": "realesrgan-x4plus", "scale": 4},
+        {"name": "4K->8K UHD (Progressive)", "w": 3840, "h": 2160, "mode": "upscale", "model": "realesrgan-x4plus-anime", "scale": 2},
     ]
 
     results = []

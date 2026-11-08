@@ -85,23 +85,31 @@ class ImageAnalyzer:
         # Palette count in quantized space
         colors_sampled = len(np.unique(gray // 16))
 
-        # Luminance distribution checks for black-and-white manga / line art
+        # Luminance distribution checks for black-and-white manga / line art vs scanned documents
         dark_ratio = float(np.mean(gray < 60))
         bright_ratio = float(np.mean(gray > 200))
-        is_bimodal = (dark_ratio > 0.02 and bright_ratio > 0.35)
+        midtone_ratio = float(np.mean((gray >= 60) & (gray <= 200)))
+        is_bimodal = (dark_ratio > 0.015 and bright_ratio > 0.35)
 
-        if mean_saturation < 0.10 and is_bimodal and edge_density > 0.015:
+        # Scanned text documents feature white paper (>75%), sparse text (<15%), and virtually zero midtones (<0.06).
+        # Manga panels contain screentones, cross-hatching, shaded artwork, and continuous tone gradients.
+        is_text_doc = (mean_saturation < 0.10 and bright_ratio > 0.70 and dark_ratio < 0.15 and midtone_ratio < 0.06)
+
+        if is_text_doc:
+            detected_category = "document"
+            cat_confidence = min(0.95, round(0.75 + (1.0 - mean_saturation) * 0.20, 2))
+        elif mean_saturation < 0.10 and is_bimodal and edge_density > 0.015:
             # Monochrome / Grayscale Manga & Line Art
             detected_category = "manga"
             cat_confidence = min(0.96, round(0.70 + (1.0 - mean_saturation) * 0.25, 2))
-        elif mean_saturation > 0.25 and colors_sampled < 14 and edge_density > 0.02:
-            # Color Anime / Digital Illustration
+        elif mean_saturation >= 0.10 and edge_density > 0.050:
+            # Color Anime / Cel Art / Digital Illustration (distinct high-contrast line borders)
             detected_category = "anime"
-            cat_confidence = min(0.95, round(0.60 + mean_saturation * 0.30, 2))
+            cat_confidence = min(0.95, round(0.65 + min(0.30, edge_density * 3.0), 2))
         else:
-            # Natural Photo / Complex continuous tone
+            # Natural Photo / Continuous tone portrait & landscape
             detected_category = "photo"
-            cat_confidence = min(0.90, round(0.55 + max(0.0, 0.5 - abs(mean_saturation - 0.3)) * 0.35, 2))
+            cat_confidence = min(0.92, round(0.60 + max(0.0, 0.5 - abs(mean_saturation - 0.35)) * 0.30, 2))
 
         return {
             "width": width,

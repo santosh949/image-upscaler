@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev)
 [![Vulkan](https://img.shields.io/badge/Vulkan-1.4-red.svg)](https://www.vulkan.org)
-[![Tests Passing](https://img.shields.io/badge/tests-69%2F69%20passed-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/tests-71%2F71%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **A free, local AI super-resolution studio designed to scale images up to 8K UHD on consumer hardware.**  
@@ -24,8 +24,8 @@ Runs offline via Vulkan shaders with specialized processing for manga, anime, an
 | :--- | :--- | :--- |
 | **Pricing & Privacy** | Paid subscriptions, monthly credit limits, or cloud fees. | **100% Free & Unlimited**. Fully offline; no image data ever leaves your computer. |
 | **Hardware Fit** | Heavy scripts or cloud dependencies that crash entry-level GPUs on large images. | **Hardware Adaptive**. Preflight safety checks evaluate RAM/VRAM to run 8K scaling safely on budget 4GB laptops. |
-| **Manga & Line Art** | Smudges halftone screentone dots and creates distracting white halos around black lines. | **Dedicated Manga Engine**: Zero-halo mathematical bounding, sub-pixel edge steepening, screentone dot protection, and paper whitening. |
-| **Anime & Manga** | Over-smooths flat color zones and smudges line work. | **Stock Real-ESRGAN Anime + Custom CV Outline Engine**: Clean line borders with sub-pixel edge steepening, screentone dot protection, and zero-halo bounding. |
+| **Manga & Line Art** | Smudges halftone screentone dots and creates distracting white halos around black lines. | **Dedicated Manga Engine**: Bounded luminance clamp on line transitions, sub-pixel edge steepening, morphological screentone dot protection, and paper whitening. |
+| **Anime & Manga** | Over-smooths flat color zones and smudges line work. | **Stock Real-ESRGAN Anime + Custom CV Outline Engine**: Clean line borders with sub-pixel edge steepening, morphological screentone dot protection, and zero-halo bounding. |
 | **Realistic Photos** | Blurs fine skin/fabric textures into waxy synthetic artifacts. | **Degradation-Aware Analysis**: Laplacian blur and noise variance estimation preserve natural high-frequency textures. |
 | **Archival / Forensic** | Forces AI hallucination on everything, inventing fake details on text/documents. | **Controllable Hallucination (Plan C)**: Pure anti-aliased Lanczos resample with 0% AI hallucination for authentic fidelity. |
 | **Batch Processing** | Either missing or tries to run concurrently, causing out-of-memory GPU crashes. | **Sequential GPU Queue**: Safely processes multiple images one-by-one, exporting all results in a single ZIP. |
@@ -63,7 +63,7 @@ Runs offline via Vulkan shaders with specialized processing for manga, anime, an
 
 | Component | Minimum (Budget / Laptop) | Recommended (Desktop / Workstation) |
 | :--- | :--- | :--- |
-| **Operating System** | Windows 10/11 (64-bit), Ubuntu 20.04+ LTS, macOS (MoltenVK) | Windows 11 (64-bit) or Modern Linux x86_64 |
+| **Operating System** | Windows 10/11 (64-bit); Multiplatform binaries packaged (Linux x86_64, macOS via MoltenVK) | Windows 11 (64-bit) (Hardware Verified) |
 | **Processor (CPU)** | Intel Core i3 (8th Gen+) / AMD Ryzen 3 (1000+), 4 cores | Intel Core i5/i7 (11th Gen+) / AMD Ryzen 5/7, 6+ cores |
 | **System Memory (RAM)** | **8 GB DDR4** ($\ge$ 4 GB free available memory) | **16 GB DDR4/DDR5** or higher |
 | **Graphics (GPU)** | **Vulkan 1.1+ Compatible**: GTX 960 / RTX 2050 Mobile / RX 550 / Intel Iris Xe | **NVIDIA RTX 3060 / 4050 / 4060+** (6 GB – 8 GB+ VRAM) |
@@ -131,11 +131,12 @@ Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA 
 
 | Benchmark Test | Mode | Scale | Input Resolution | Output Resolution | Output Megapixels | Latency | Peak VRAM |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Direct 4× Photo** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **9.58 s** | 1.89 GB |
-| **Anime Line Art** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **4.77 s** | 1.73 GB |
-| **Classical Restore** | `restore` | 1× | 256 × 256 | 256 × 256 | 0.07 MP | **0.53 s** | 75 MB |
-| **Combined Restore + 4×** | `restore_upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **14.62 s** | 1.89 GB |
-| **Tiled 4× Photo (Batch)** | `upscale` | 4× | 512 × 512 | 2048 × 2048 | 4.19 MP | **22.40 s** | 3.45 GB |
+| **Direct 4× Photo** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **4.99 s** | 1.97 GB |
+| **Anime Line Art** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **2.62 s** | 1.81 GB |
+| **Classical Restore** | `restore` | 1× | 256 × 256 | 256 × 256 | 0.07 MP | **0.35 s** | 161 MB |
+| **Combined Restore + 4×** | `restore_upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **4.66 s** | 1.98 GB |
+| **Tiled 4× Photo (Chunked 8-batch)** | `upscale` | 4× | 512 × 512 | 2048 × 2048 | 4.19 MP | **13.08 s** | 3.55 GB |
+| **4K → 8K UHD (Progressive 2×)** | `upscale` | 2× | 3840 × 2160 | 7680 × 4320 | 33.18 MP | **99.15 s** | 3.37 GB |
 
 ---
 
@@ -166,13 +167,13 @@ Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA 
 
 ## 🔬 Testing
 
-Includes **69 automated tests** covering tiling boundaries, memory limits, edge normal steepening, batch queue ordering, security validation, and metadata provenance:
+Includes **71 automated tests** covering tiling boundaries, memory limits, edge normal steepening, batch queue ordering, security validation, and metadata provenance:
 
 ```bash
 pytest tests/
 ```
 ```text
-======================= 69 passed in 99.40s =======================
+======================= 71 passed =======================
 ```
 
 ---

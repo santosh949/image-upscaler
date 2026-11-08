@@ -22,33 +22,66 @@ class NCNNRealESRGANAdapter(ModelAdapter):
         self.current_process: Optional[subprocess.Popen] = None
 
     def get_vulkan_devices(self) -> Dict[int, str]:
-        """Queries NCNN binary directly for available Vulkan devices and their names."""
+        """Queries Vulkan devices dynamically via vulkaninfo or NCNN probe."""
         if NCNNRealESRGANAdapter._cached_devices is not None:
             return NCNNRealESRGANAdapter._cached_devices
 
         devices: Dict[int, str] = {}
-        if os.path.isfile(self.exe_path):
+        cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+        # 1. Fast sub-50ms query via standard vulkaninfo
+        try:
+            v_out = subprocess.check_output(
+                ["vulkaninfo", "--summary"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+                creationflags=cf,
+                timeout=3
+            )
+            current_gpu_idx = None
+            for line in v_out.splitlines():
+                gpu_match = re.search(r"GPU(\d+):", line)
+                if gpu_match:
+                    current_gpu_idx = int(gpu_match.group(1))
+                elif current_gpu_idx is not None and "deviceName" in line:
+                    parts = line.split("=")
+                    if len(parts) >= 2:
+                        devices[current_gpu_idx] = parts[1].strip()
+                        current_gpu_idx = None
+        except Exception:
+            pass
+
+        # 2. Fallback to lightweight NCNN probe on 4x4 dummy image
+        if not devices and os.path.isfile(self.exe_path):
             try:
                 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                test_input = os.path.join(root_dir, "tests", "fixtures", "test_input.png")
-                temp_out = os.path.join(root_dir, "storage", "temp", "dev_probe.png")
-                if os.path.isfile(test_input):
-                    res = subprocess.run(
-                        [self.exe_path, "-i", test_input, "-o", temp_out, "-m", self.models_dir, "-n", "realesrgan-x4plus", "-s", "4", "-g", "0", "-v"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
-                    )
-                    matches = re.findall(r"\[(\d+)\s+([^\]]+)\]", res.stderr)
-                    for idx, name in matches:
-                        devices[int(idx)] = name.strip()
-                    if os.path.exists(temp_out):
-                        os.remove(temp_out)
+                tiny_probe = os.path.join(root_dir, "storage", "temp", "tiny_probe.png")
+                tiny_out = os.path.join(root_dir, "storage", "temp", "tiny_probe_out.png")
+                os.makedirs(os.path.dirname(tiny_probe), exist_ok=True)
+                Image.new("RGB", (4, 4), (0, 0, 0)).save(tiny_probe, "PNG")
+
+                res = subprocess.run(
+                    [self.exe_path, "-i", tiny_probe, "-o", tiny_out, "-m", self.models_dir, "-s", "2", "-t", "32", "-v"],
+                    capture_output=True,
+                    text=True,
+                    creationflags=cf,
+                    timeout=3
+                )
+                matches = re.findall(r"\[(\d+)\s+([^\]]+)\]", res.stderr)
+                for idx, name in matches:
+                    devices[int(idx)] = name.strip()
+
+                for p in (tiny_probe, tiny_out):
+                    if os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
         if not devices:
-            devices[0] = "NVIDIA GeForce RTX 2050"
+            devices[0] = "Vulkan Compatible Device"
 
         NCNNRealESRGANAdapter._cached_devices = devices
         return devices

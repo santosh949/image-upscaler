@@ -70,16 +70,32 @@ class ModelRouter:
         if category == "anime" and ("realesrgan-x4plus-anime" in available_models or "realesr-animevideov3" in available_models):
             model_key = "realesrgan-x4plus-anime" if "realesrgan-x4plus-anime" in available_models else "realesr-animevideov3"
             model = available_models[model_key]
-            recommended_params["preset"] = "smooth_clean"
+            recommended_params["preset"] = "artwork"
             return {
                 "selected_model": model["id"],
                 "model_name": model["name"],
                 "scale": 4,
-                "preset": "smooth_clean",
+                "preset": "artwork",
                 "recommended_parameters": recommended_params,
                 "reasoning": (
                     f"Selected {model['name']}: Image classified as anime/illustration "
-                    f"({confidence}% confidence). Optimized for clean stroke borders and color gradients."
+                    f"({confidence}% confidence). Preserving cel lines and color fills without photo smoothing."
+                )
+            }
+
+        # 3. Scanned text / Document
+        if category == "document" and "realesrgan-x4plus" in available_models:
+            model = available_models["realesrgan-x4plus"]
+            recommended_params["preset"] = "faithful"
+            return {
+                "selected_model": model["id"],
+                "model_name": model["name"],
+                "scale": 4,
+                "preset": "faithful",
+                "recommended_parameters": recommended_params,
+                "reasoning": (
+                    f"Selected {model['name']}: Scanned text / document detected "
+                    f"({confidence}% confidence). Using faithful reconstruction without outline hallucination."
                 )
             }
 

@@ -13,6 +13,7 @@ class JobCreateRequest(BaseModel):
     preset: Optional[str] = None
     crop_region: Optional[List[int]] = None  # [x, y, width, height]
     plan_json: Optional[str] = None
+    recommended_parameters: Optional[dict] = None
 
 class JobResponse(BaseModel):
     job_id: str

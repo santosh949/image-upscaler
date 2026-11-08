@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, Tuple
 
 class ResourceEstimator:
     """
-    Computes preflight resource estimates per Part C3, C4, and F5a:
+    Computes preflight resource estimates:
     - Output megapixels & dimensions
     - Peak RAM estimate (distinguishing in-memory vs disk-streaming)
     - Peak VRAM estimate based on model & tile size
@@ -12,8 +12,8 @@ class ResourceEstimator:
     - Estimated runtime based on measured baseline telemetry
     """
 
-    MAX_INMEMORY_MP = 25.0   # Default conservative in-RAM limit (Part C3)
-    MAX_OUTPUT_MP = 100.0    # Hard output limit on Profile A (Part C3)
+    MAX_INMEMORY_MP = 25.0   # Conservative in-RAM threshold before disk streaming
+    MAX_OUTPUT_MP = 100.0    # Hard output limit for profile constraints
 
     # Measured benchmarks on RTX 2050 (from benchmarks/BENCHMARK_RESULTS.md)
     # Output MP/s throughput
@@ -38,7 +38,7 @@ class ResourceEstimator:
         channels = 4 if is_transparent else 3
         out_mp = (target_w * target_h) / 1_000_000.0
 
-        # Reference raw memory calculation (Part C4)
+        # Reference raw memory calculation
         raw_rgb8_mb = (target_w * target_h * channels) / (1024 * 1024)
         raw_float32_mb = (target_w * target_h * channels * 4) / (1024 * 1024)
 

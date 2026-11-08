@@ -104,6 +104,17 @@ def process_job(job_id: str) -> None:
                 quality=quality
             )
         else:
+            # Extract degradation overrides from plan_json if present
+            degrad_overrides = {}
+            if plan_json:
+                try:
+                    p_info = json.loads(plan_json)
+                    for k in ["pre_denoise", "post_sharpen", "deblock_jpeg", "denoise_strength", "sharpen_amount"]:
+                        if k in p_info:
+                            degrad_overrides[k] = p_info[k]
+                except Exception:
+                    pass
+
             # Execute standard pipeline
             res = pipeline.run(
                 input_path=inference_input,
@@ -117,7 +128,8 @@ def process_job(job_id: str) -> None:
                 cancel_check=lambda: job_manager.is_cancelled(job_id),
                 format_name=output_format,
                 quality=quality,
-                preset=preset_name
+                preset=preset_name,
+                overrides=degrad_overrides
             )
 
         update_job_status(
@@ -154,7 +166,7 @@ def process_job(job_id: str) -> None:
         if res.get("consistency"):
             completion_msg += f" (PSNR: {res['consistency']['psnr_db']} dB)"
 
-        # Register output in Version Graph (Part E)
+        # Register output in Version Graph
         try:
             from backend.app.services.version_service import version_service
             if plan_json:

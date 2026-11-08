@@ -27,7 +27,7 @@ def test_model_registry_integrity():
         assert "weight_license" in m
 
 def test_analyzer_real_signals():
-    fixture_path = os.path.abspath(r"tests\fixtures\test_input.png")
+    fixture_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "fixtures", "test_input.png"))
     assert os.path.isfile(fixture_path)
 
     res = analyzer.analyze(fixture_path)
@@ -37,7 +37,7 @@ def test_analyzer_real_signals():
     assert isinstance(res["estimated_blur_score"], float)
     assert isinstance(res["estimated_noise_sigma"], float)
     assert 1 <= res["jpeg_quality_estimate"] <= 100
-    assert res["detected_category"] in ("photo", "anime")
+    assert res["detected_category"] in ("photo", "anime", "manga", "document")
     assert 0.0 <= res["category_confidence"] <= 1.0
 
 def test_router_decision_rules():
@@ -68,8 +68,8 @@ def test_router_decision_rules():
     assert override["selected_model"] == "realesrgan-x4plus-anime"
     assert "manual override" in override["reasoning"].lower()
 
-def test_api_analyze_and_anime_inference():
-    fixture_path = os.path.abspath(r"tests\fixtures\test_input.png")
+def test_api_analyze_and_anime_inference(requires_ncnn):
+    fixture_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "fixtures", "test_input.png"))
     with open(fixture_path, "rb") as f:
         up_res = client.post("/api/v1/images", files={"file": ("test_input.png", f, "image/png")})
     assert up_res.status_code == 200
@@ -100,4 +100,55 @@ def test_api_analyze_and_anime_inference():
         time.sleep(1.0)
 
     assert status == "completed", "Anime model inference failed to complete"
+
+def test_document_vs_manga_discrimination(tmp_path):
+    import numpy as np
+    from PIL import Image
+
+    # 1. Synthetic scanned text document (pure white page with black text lines, 0 midtones)
+    doc_arr = np.full((300, 300, 3), 255, dtype=np.uint8)
+    for y in range(30, 270, 20):
+        doc_arr[y:y+3, 30:270] = 10  # text line
+    doc_path = str(tmp_path / "scanned_doc.png")
+    Image.fromarray(doc_arr).save(doc_path)
+
+    doc_analysis = analyzer.analyze(doc_path)
+    assert doc_analysis["detected_category"] == "document", f"Expected document, got {doc_analysis['detected_category']}"
+    doc_route = router.route(doc_analysis)
+    assert doc_route["preset"] == "faithful"
+
+    # 2. Synthetic manga panel (ink strokes + screentone midtones)
+    manga_arr = np.full((300, 300, 3), 245, dtype=np.uint8)
+    # Halftone screentone region (30% area with alternating dots)
+    manga_arr[50:200, 50:200:2] = 130
+    manga_arr[50:200, 51:200:2] = 230
+    # Black line borders and character ink
+    manga_arr[40:55, 40:260] = 15
+    manga_arr[40:260, 40:55] = 15
+    manga_arr[100:200, 100:110] = 15
+    manga_path = str(tmp_path / "manga_panel.png")
+    Image.fromarray(manga_arr).save(manga_path)
+
+    manga_analysis = analyzer.analyze(manga_path)
+    assert manga_analysis["detected_category"] == "manga", f"Expected manga, got {manga_analysis['detected_category']}"
+    manga_route = router.route(manga_analysis)
+    assert manga_route["preset"] == "manga_crisp"
+    assert manga_route["selected_model"] == "realesrgan-x4plus-anime"
+
+def test_degradation_overrides_wiring(tmp_path):
+    from ai_engine.pipelines.pipeline import pipeline
+    test_img = Image.new("RGB", (64, 64), (120, 130, 140))
+    in_path = str(tmp_path / "wiring_in.png")
+    out_path = str(tmp_path / "wiring_out.png")
+    test_img.save(in_path)
+
+    # Run with degradation overrides enabled
+    res = pipeline.run(
+        input_path=in_path,
+        output_path=out_path,
+        mode="restore",
+        scale=1,
+        overrides={"pre_denoise": "medium", "post_sharpen": "low"}
+    )
+    assert any("classical-restoration" in s for s in res["stages_executed"])
 

@@ -4,7 +4,7 @@ from backend.app.services.resource_estimator import resource_estimator
 
 class ResolutionPlanner:
     """
-    Computes intelligent resolution plans (Plans A, B, C) per Part F:
+    Computes intelligent resolution plans (Plans A, B, C):
     - Plan A: Direct from earliest ancestor (Single-pass, high faithfulness)
     - Plan B: Progressive continuation from current version (with same-model-repeat guards)
     - Plan C: Traditional anti-aliased resampling (No invented detail)
@@ -43,7 +43,7 @@ class ResolutionPlanner:
         if abs(src_aspect - target_aspect) > 0.05:
             raise ValueError(
                 f"Target aspect ratio ({target_w}x{target_h}) does not match source "
-                f"({src_w}x{src_h}). Aspect ratio distortion is prohibited per Part A3.11."
+                f"({src_w}x{src_h}). Aspect ratio distortion is strictly prohibited."
             )
 
         linear_scale = target_w / src_w

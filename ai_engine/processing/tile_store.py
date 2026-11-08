@@ -9,7 +9,7 @@ from backend.app.core.config import settings
 class TileStore:
     """
     Manages persistent intermediate tile storage on disk and in SQLite
-    for pause, resume, and checkpoint recovery (Part F4 & ADR 004).
+    for pause, resume, and checkpoint recovery.
     """
 
     def __init__(self, base_dir: Optional[str] = None):

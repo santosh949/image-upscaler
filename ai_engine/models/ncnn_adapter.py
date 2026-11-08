@@ -1,8 +1,11 @@
 import os
+import sys
 import time
+import shutil
+import tempfile
 import subprocess
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from PIL import Image
 from ai_engine.models.base import ModelAdapter
 
@@ -13,7 +16,8 @@ class NCNNRealESRGANAdapter(ModelAdapter):
 
     def __init__(self, exe_path: Optional[str] = None, models_dir: Optional[str] = None):
         root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.exe_path = exe_path or os.path.join(root_dir, "tools", "realesrgan-ncnn-vulkan", "realesrgan-ncnn-vulkan.exe")
+        bin_name = "realesrgan-ncnn-vulkan.exe" if sys.platform.startswith("win") else "realesrgan-ncnn-vulkan"
+        self.exe_path = exe_path or os.path.join(root_dir, "tools", "realesrgan-ncnn-vulkan", bin_name)
         self.models_dir = models_dir or os.path.join(root_dir, "tools", "realesrgan-ncnn-vulkan", "models")
         self.current_process: Optional[subprocess.Popen] = None
 
@@ -152,6 +156,67 @@ class NCNNRealESRGANAdapter(ModelAdapter):
             "elapsed_seconds": round(elapsed, 3),
             "output_bytes": os.path.getsize(output_path)
         }
+
+    def enhance_batch(
+        self,
+        input_paths: List[str],
+        output_paths: List[str],
+        scale: int = 4,
+        tile_size: int = 0,
+        gpu_id: int = 0,
+        model_name: str = "realesrgan-x4plus"
+    ) -> List[str]:
+        """
+        Executes NCNN inference across multiple image tiles in a single process.
+        Avoids reloading neural network weights per tile.
+        """
+        if not input_paths:
+            return []
+
+        bin_file = f"{model_name}.bin"
+        if not os.path.isfile(os.path.join(self.models_dir, bin_file)):
+            raise FileNotFoundError(f"Model file missing: {bin_file} in {self.models_dir}")
+
+        with tempfile.TemporaryDirectory(prefix="ncnn_batch_in_") as batch_in_dir, \
+             tempfile.TemporaryDirectory(prefix="ncnn_batch_out_") as batch_out_dir:
+
+            name_map = {}
+            for idx, in_p in enumerate(input_paths):
+                ext = os.path.splitext(in_p)[1] or ".png"
+                tile_fname = f"tile_{idx:05d}{ext}"
+                dest_in = os.path.join(batch_in_dir, tile_fname)
+                shutil.copyfile(in_p, dest_in)
+                name_map[f"tile_{idx:05d}"] = output_paths[idx]
+
+            cmd = [
+                self.exe_path,
+                "-i", os.path.abspath(batch_in_dir),
+                "-o", os.path.abspath(batch_out_dir),
+                "-m", os.path.abspath(self.models_dir),
+                "-n", model_name,
+                "-s", str(scale),
+                "-g", str(gpu_id),
+                "-t", str(tile_size),
+                "-v"
+            ]
+
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            if proc.returncode != 0:
+                raise RuntimeError(f"Batch NCNN inference failed with exit code {proc.returncode}. Stderr: {proc.stderr}")
+
+            for stem, final_out_path in name_map.items():
+                out_candidate = os.path.join(batch_out_dir, f"{stem}.png")
+                if not os.path.isfile(out_candidate):
+                    ext = os.path.splitext(final_out_path)[1]
+                    out_candidate = os.path.join(batch_out_dir, f"{stem}{ext}")
+
+                if os.path.isfile(out_candidate):
+                    os.makedirs(os.path.dirname(os.path.abspath(final_out_path)), exist_ok=True)
+                    shutil.move(out_candidate, final_out_path)
+                else:
+                    raise FileNotFoundError(f"Batch inference failed to produce tile for {final_out_path}")
+
+        return output_paths
 
     def cancel(self) -> None:
         if self.current_process and self.current_process.poll() is None:

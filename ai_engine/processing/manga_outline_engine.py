@@ -61,28 +61,21 @@ class MangaOutlineEngine:
             rgb[:, :, 2] = lum
 
         # 2. Screentone Frequency Protection Mask
-        # Screentones feature high localized variance with low macro-scale gradient
         screentone_mask = np.zeros_like(lum, dtype=np.float32)
-        if protect_screentones:
-            # Local variance in 3x3 window: Var = E[X^2] - (E[X])^2
-            mean_l = cv2.blur(lum, (3, 3))
-            mean_sq = cv2.blur(lum ** 2, (3, 3))
-            local_std = np.sqrt(np.maximum(0.0, mean_sq - (mean_l ** 2)))
+        if protect_screentones and lum.shape[0] >= 16 and lum.shape[1] >= 16:
+            # Halftones and screentones are isotropic periodic high-frequency patterns
+            # Morphological residue separates isolated dot clusters from continuous strokes
+            k_size = 5
+            elem = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k_size, k_size))
+            closed = cv2.morphologyEx(lum, cv2.MORPH_CLOSE, elem)
+            opened = cv2.morphologyEx(lum, cv2.MORPH_OPEN, elem)
+            residue = np.maximum(np.abs(lum - closed), np.abs(lum - opened))
 
-            # Macro gradient (smoothed)
-            smooth_l = cv2.GaussianBlur(lum, (5, 5), 1.0)
-            sobel_x = cv2.Sobel(smooth_l, cv2.CV_32F, 1, 0, ksize=3)
-            sobel_y = cv2.Sobel(smooth_l, cv2.CV_32F, 0, 1, ksize=3)
-            macro_grad = np.sqrt(sobel_x ** 2 + sobel_y ** 2)
-
-            # Midtones with high local texture variance but low macro edge strength are screentones
-            screentone_candidate = (
-                (local_std > 8.0) &
-                (macro_grad < 25.0) &
-                (lum >= 50.0) &
-                (lum <= 220.0)
-            )
-            # Dilate slightly to form a protective envelope
+            # Texture density score across local neighborhood
+            screentone_score = cv2.blur(residue, (7, 7))
+            # Midtone gating: screentones occur in shading regions
+            in_midtone = (lum >= 25.0) & (lum <= 235.0)
+            screentone_candidate = (screentone_score > 8.0) & in_midtone
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
             screentone_mask = cv2.dilate(screentone_candidate.astype(np.float32), kernel)
 
@@ -114,19 +107,20 @@ class MangaOutlineEngine:
         enhanced_lum = lum * (1.0 - edge_weight * blend_factor) + steepened_l * (edge_weight * blend_factor)
 
         # 4. Paper Purification & Deep Black Reinforcement
+        screentone_inv = 1.0 - screentone_mask
         if clean_paper:
-            # Whites > 232 pushed cleanly to 255 (eliminates dirty scanner haze & JPEG mosquito artifacts)
+            # Whites > 232 pushed cleanly to 255 outside screentone regions
             white_thresh = 232.0
-            white_mask = enhanced_lum > white_thresh
+            white_mask = (enhanced_lum > white_thresh) & (screentone_inv > 0.5)
             white_ramp = np.clip((enhanced_lum - white_thresh) / (248.0 - white_thresh), 0.0, 1.0)
-            enhanced_lum = np.where(white_mask, enhanced_lum + (255.0 - enhanced_lum) * white_ramp, enhanced_lum)
+            enhanced_lum = np.where(white_mask, enhanced_lum + (255.0 - enhanced_lum) * white_ramp * screentone_inv, enhanced_lum)
 
         if deep_ink:
-            # Darks < 32 snapped cleanly to pure deep black (#000000)
+            # Darks < 32 snapped cleanly to pure deep black (#000000) outside screentone regions
             black_thresh = 32.0
-            black_mask = enhanced_lum < black_thresh
+            black_mask = (enhanced_lum < black_thresh) & (screentone_inv > 0.5)
             black_ramp = np.clip((black_thresh - enhanced_lum) / (black_thresh - 8.0), 0.0, 1.0)
-            enhanced_lum = np.where(black_mask, enhanced_lum * (1.0 - black_ramp), enhanced_lum)
+            enhanced_lum = np.where(black_mask, enhanced_lum * (1.0 - black_ramp * screentone_inv), enhanced_lum)
 
         # Re-apply enhanced luminance to RGB channels
         enhanced_lum = np.clip(enhanced_lum, 0.0, 255.0)

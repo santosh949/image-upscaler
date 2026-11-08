@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev)
 [![Vulkan](https://img.shields.io/badge/Vulkan-1.4-red.svg)](https://www.vulkan.org)
-[![Tests Passing](https://img.shields.io/badge/tests-68%2F68%20passed-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/tests-69%2F69%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **A free, local AI super-resolution studio designed to scale images up to 8K UHD on consumer hardware.**  
@@ -25,7 +25,7 @@ Runs offline via Vulkan shaders with specialized processing for manga, anime, an
 | **Pricing & Privacy** | Paid subscriptions, monthly credit limits, or cloud fees. | **100% Free & Unlimited**. Fully offline; no image data ever leaves your computer. |
 | **Hardware Fit** | Heavy scripts or cloud dependencies that crash entry-level GPUs on large images. | **Hardware Adaptive**. Preflight safety checks evaluate RAM/VRAM to run 8K scaling safely on budget 4GB laptops. |
 | **Manga & Line Art** | Smudges halftone screentone dots and creates distracting white halos around black lines. | **Dedicated Manga Engine**: Zero-halo mathematical bounding, sub-pixel edge steepening, screentone dot protection, and paper whitening. |
-| **Anime & Art** | Over-smooths flat color zones and creates plastic-looking edges. | **Tuned Anime Weights**: Clean vector-like line borders with smooth gradient transitions and alpha bleed correction. |
+| **Anime & Manga** | Over-smooths flat color zones and smudges line work. | **Stock Real-ESRGAN Anime + Custom CV Outline Engine**: Clean line borders with sub-pixel edge steepening, screentone dot protection, and zero-halo bounding. |
 | **Realistic Photos** | Blurs fine skin/fabric textures into waxy synthetic artifacts. | **Degradation-Aware Analysis**: Laplacian blur and noise variance estimation preserve natural high-frequency textures. |
 | **Archival / Forensic** | Forces AI hallucination on everything, inventing fake details on text/documents. | **Controllable Hallucination (Plan C)**: Pure anti-aliased Lanczos resample with 0% AI hallucination for authentic fidelity. |
 | **Batch Processing** | Either missing or tries to run concurrently, causing out-of-memory GPU crashes. | **Sequential GPU Queue**: Safely processes multiple images one-by-one, exporting all results in a single ZIP. |
@@ -127,14 +127,15 @@ Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.
 
 ## 🧪 Benchmarks
 
-Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA GeForce RTX 2050 Mobile 4 GB VRAM, Windows 11):
+Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA GeForce RTX 2050 Mobile 4 GB VRAM, Windows 11, Vulkan):
 
-| Operation | Input Resolution | Output Resolution | Output Megapixels | Runtime | Peak Memory |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Direct 4× Photo** | 512 × 512 | 2048 × 2048 | 4.19 MP | **3.82 s** | < 1.2 GB VRAM |
-| **Manga Inking Master** | 140 × 65 | 560 × 260 | 0.15 MP | **5.72 s** | < 800 MB VRAM |
-| **Progressive 4K $\rightarrow$ 8K** | 3840 × 2160 | 7680 × 4320 | **33.18 MP** | **134.97 s** | < 1.8 GB VRAM |
-| **Preview Crop** | 256 × 256 | 1024 × 1024 | 1.05 MP | **0.95 s** | < 600 MB VRAM |
+| Benchmark Test | Mode | Scale | Input Resolution | Output Resolution | Output Megapixels | Latency | Peak VRAM |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Direct 4× Photo** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **9.58 s** | 1.89 GB |
+| **Anime Line Art** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **4.77 s** | 1.73 GB |
+| **Classical Restore** | `restore` | 1× | 256 × 256 | 256 × 256 | 0.07 MP | **0.53 s** | 75 MB |
+| **Combined Restore + 4×** | `restore_upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **14.62 s** | 1.89 GB |
+| **Tiled 4× Photo (Batch)** | `upscale` | 4× | 512 × 512 | 2048 × 2048 | 4.19 MP | **22.40 s** | 3.45 GB |
 
 ---
 
@@ -153,10 +154,10 @@ Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA 
        Inference Engine (NCNN Vulkan Device 0)
          ├── Degradation Analyzer (Laplacian blur, noise variance, JPEG quality)
          ├── Neural Router (Content-type auto-detection)
-         ├── Tiled NCNN Engine (2D Hann-feathered cosine blending)
+         ├── Tiled NCNN Engine (Folder-batching & 2D Hann-feathered cosine blending)
          │     ├── RealESRGAN x4plus (Photographic)
          │     └── RealESRGAN x4plus-anime (Anime / Manga)
-         ├── 4-Pillar Manga Outline Engine (Zero-halo bounding & steepening)
+         ├── 4-Pillar Manga Outline Engine (Zero-halo bounding & screentone protection)
          ├── Alpha Bleed Channel Preserver (Inpainting + Lanczos alpha)
          └── Provenance Sidecar Embedder (.manifest.json lineage records)
 ```
@@ -165,18 +166,18 @@ Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA 
 
 ## 🔬 Testing
 
-Includes **68 automated tests** covering tiling boundaries, memory limits, edge normal steepening, batch queue ordering, and metadata provenance:
+Includes **69 automated tests** covering tiling boundaries, memory limits, edge normal steepening, batch queue ordering, security validation, and metadata provenance:
 
 ```bash
 pytest tests/
 ```
 ```text
-======================= 68 passed in 72.17s =======================
+======================= 69 passed in 99.40s =======================
 ```
 
 ---
 
-## 📜 License
+## 📜 License & Model Provenance
 
 * **Application Code:** [MIT License](LICENSE)
-* **Neural Models:** Powered by Tencent ARC / Real-ESRGAN open-source checkpoints (BSD 3-Clause).
+* **Model Checkpoints:** Stock Real-ESRGAN weights (`realesrgan-x4plus`, `realesrgan-x4plus-anime`) created by Xinntao / Tencent ARC. Neural network architecture is BSD 3-Clause; pre-trained weights are governed by DIV2K/Flickr2K non-commercial research terms.

@@ -52,18 +52,25 @@ def test_manga_outline_paper_and_ink():
     assert p_arr[0, 4] == 255
 
 def test_manga_outline_screentone_protection():
-    # Synthetic screentone: checkerboard / dot pattern
-    arr = np.zeros((64, 64), dtype=np.uint8) + 128
-    arr[::2, ::2] = 80
-    arr[1::2, 1::2] = 180
-    img = Image.fromarray(arr, mode="L").convert("RGB")
+    # Realistic halftone dot pattern (periodic dot screen)
+    size = 128
+    y, x = np.ogrid[:size, :size]
+    period = 6
+    dist_to_center = np.sqrt(((x % period) - period / 2) ** 2 + ((y % period) - period / 2) ** 2)
+    halftone = np.where(dist_to_center < 2.0, 30, 235).astype(np.uint8)
+    img = Image.fromarray(halftone).convert("RGB")
 
-    orig_std = np.std(arr)
-    processed = MangaOutlineEngine.process(img, strength=1.0, protect_screentones=True)
-    p_arr = np.array(processed.convert("L"))
-    proc_std = np.std(p_arr)
+    orig_std = np.std(halftone)
+    p_on = np.array(MangaOutlineEngine.process(img, strength=1.0, protect_screentones=True).convert("L"))
+    p_off = np.array(MangaOutlineEngine.process(img, strength=1.0, protect_screentones=False).convert("L"))
 
-    # Screentone frequency must be preserved, not smudged or destroyed
+    # 1. Output must NOT be byte-identical: protection flag must demonstrably shield pixels
+    assert not np.array_equal(p_on, p_off), "Protection flag must change processing on screentones"
+    diff = np.abs(p_on.astype(int) - p_off.astype(int))
+    assert (diff > 0).sum() > 100, "Significant number of pixels must be shielded by protection envelope"
+
+    # 2. Screentone frequency must be preserved without smudging or threshold erosion
+    proc_std = np.std(p_on)
     assert proc_std > 0.8 * orig_std
 
 def test_pipeline_manga_crisp_stage_execution(tmp_path):

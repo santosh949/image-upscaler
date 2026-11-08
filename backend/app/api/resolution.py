@@ -174,7 +174,7 @@ def resume_job(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found.")
 
     resumed = job_manager.resume_job(job_id)
-    return {"job_id": job_id, "resumed": resumed, "status": "processing" if resumed else job["status"]}
+    return {"job_id": job_id, "resumed": resumed, "status": "queued" if resumed else job["status"]}
 
 @router.get("/jobs/{job_id}/stages")
 def get_job_stages(job_id: str):

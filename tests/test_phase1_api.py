@@ -20,7 +20,8 @@ def test_capabilities_endpoint():
     res = client.get("/api/v1/system/capabilities")
     assert res.status_code == 200
     data = res.json()
-    assert data["gpu"] == "NVIDIA GeForce RTX 2050"
+    assert "gpu" in data
+    assert "vulkan_device_index" in data
     assert data["vulkan_device_index"] == 0
 
 def test_models_registry_endpoint():

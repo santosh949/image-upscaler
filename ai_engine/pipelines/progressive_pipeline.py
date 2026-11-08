@@ -1,5 +1,6 @@
 import os
 import time
+import shutil
 import tempfile
 from typing import Dict, Any, Optional, Callable, List
 from PIL import Image
@@ -14,9 +15,9 @@ from ai_engine.processing.metadata_embedder import MetadataEmbedder
 
 class ProgressivePipeline:
     """
-    Progressive Resolution Pipeline (Part F4 & ADR 005):
+    Progressive Resolution Pipeline:
     - Multi-stage execution using ResolutionPlanner plans.
-    - Flagship feature: 4K -> 8K via Per-Tile Scale Adaptation (crop tile -> 4x NCNN -> 0.5x Lanczos downscale -> accumulation).
+    - Flagship feature: 4K -> 8K via Per-Tile Scale Adaptation with cosine-feathered blending.
     - Tile-level persistence and checkpointing via TileStore.
     - Zero intermediate 16K buffer materialized in physical memory.
     """
@@ -92,6 +93,9 @@ class ProgressivePipeline:
             if progress_cb:
                 progress_cb(0, len(tile_grid), f"{msg_prefix}: Starting inference")
 
+            # Determine optimal NCNN scale (native 2x supported directly)
+            ncnn_scale = 2 if target_scale == 2.0 else model_scale
+
             def ncnn_infer_tile(tile: Image.Image) -> Image.Image:
                 with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t_in, \
                      tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t_out:
@@ -102,7 +106,7 @@ class ProgressivePipeline:
                     self.adapter.enhance(
                         input_path=temp_in_path,
                         output_path=temp_out_path,
-                        scale=model_scale,
+                        scale=ncnn_scale,
                         tile_size=tile_size,
                         gpu_id=gpu_id,
                         model_name=model_name
@@ -114,11 +118,43 @@ class ProgressivePipeline:
                     if os.path.exists(temp_out_path):
                         os.remove(temp_out_path)
 
+            def ncnn_batch_infer_tiles(tile_list: List[Image.Image]) -> List[Image.Image]:
+                if not tile_list:
+                    return []
+                temp_ins = []
+                temp_outs = []
+                temp_dir = tempfile.mkdtemp(prefix="prog_batch_")
+                try:
+                    for i, t in enumerate(tile_list):
+                        p_in = os.path.join(temp_dir, f"in_{i:05d}.png")
+                        p_out = os.path.join(temp_dir, f"out_{i:05d}.png")
+                        t.save(p_in, format="PNG")
+                        temp_ins.append(p_in)
+                        temp_outs.append(p_out)
+
+                    self.adapter.enhance_batch(
+                        input_paths=temp_ins,
+                        output_paths=temp_outs,
+                        scale=ncnn_scale,
+                        tile_size=tile_size,
+                        gpu_id=gpu_id,
+                        model_name=model_name
+                    )
+
+                    results = []
+                    for p_out in temp_outs:
+                        with Image.open(p_out) as im:
+                            results.append(im.copy())
+                    return results
+                finally:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+
             try:
                 stage_out = self.tile_engine.process(
                     img=current_img,
                     infer_fn=ncnn_infer_tile,
-                    scale=model_scale,
+                    batch_infer_fn=ncnn_batch_infer_tiles,
+                    scale=ncnn_scale,
                     target_scale=target_scale,
                     tile_size=tile_size,
                     overlap=32,
@@ -209,6 +245,8 @@ class ProgressivePipeline:
             "height": plan["target_height"],
             "megapixels": round((plan["target_width"] * plan["target_height"]) / 1_000_000.0, 2),
             "runtime_s": round(runtime, 2),
+            "stages": stages_executed,
+            "stages_executed": stages_executed,
             "stages_count": len(stages_executed)
         }
 

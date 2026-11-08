@@ -70,8 +70,11 @@ class JobManager:
 
     def _spawn_worker_internal(self, job_id: str) -> None:
         cmd = [sys.executable, "-m", "backend.app.workers.job_worker", job_id]
+        worker_env = os.environ.copy()
+        worker_env["DATABASE_PATH"] = str(settings.DATABASE_PATH)
         proc = subprocess.Popen(
             cmd,
+            env=worker_env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -130,7 +133,7 @@ class JobManager:
             except Exception:
                 pass
 
-        update_job_status(job_id, status="processing", stage="resuming", message="Resuming from checkpoint...")
+        update_job_status(job_id, status="queued", stage="resumed", message="Resumed from checkpoint, queued for execution...")
         self.spawn_worker(job_id)
         return True
 

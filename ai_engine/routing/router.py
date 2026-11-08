@@ -28,43 +28,78 @@ class ModelRouter:
 
         # Auto-routing based on degradation analysis
         category = analysis.get("detected_category", "photo")
+        confidence = int(analysis.get("category_confidence", 0.8) * 100)
         is_blurry = analysis.get("is_blurry", False)
         noise = analysis.get("estimated_noise_sigma", 0.0)
+        jpeg_q = analysis.get("jpeg_quality_estimate", 90)
 
-        # 1. Anime / Digital illustration
-        if category == "anime" and "realesrgan-x4plus-anime" in available_models:
-            model = available_models["realesrgan-x4plus-anime"]
-            reason = (
-                f"Selected {model['name']}: Image classified as anime/illustration "
-                f"(confidence {int(analysis.get('category_confidence', 0.8) * 100)}%). "
-                "Optimized for sharp line art and color gradient clarity."
-            )
+        # Build processing parameter overrides based on degradation analysis
+        recommended_params = {}
+        if noise > 4.5:
+            recommended_params["pre_denoise"] = "medium"
+            recommended_params["denoise_strength"] = min(10.0, round(noise * 0.5, 1))
+        if is_blurry:
+            recommended_params["post_sharpen"] = "low"
+            recommended_params["sharpen_amount"] = 0.35
+        if jpeg_q < 75:
+            recommended_params["deblock_jpeg"] = True
+
+        # 1. Manga / Monochrome Line Art
+        if category == "manga" and ("realesrgan-x4plus-anime" in available_models or "realesr-animevideov3" in available_models):
+            model_key = "realesrgan-x4plus-anime" if "realesrgan-x4plus-anime" in available_models else "realesr-animevideov3"
+            model = available_models[model_key]
+            recommended_params["preset"] = "manga_crisp"
+            recommended_params["outline_engine"] = True
+            recommended_params["clean_paper"] = True
+            recommended_params["deep_ink"] = True
+            recommended_params["protect_screentones"] = True
             return {
                 "selected_model": model["id"],
                 "model_name": model["name"],
                 "scale": 4,
-                "reasoning": reason
+                "preset": "manga_crisp",
+                "recommended_parameters": recommended_params,
+                "reasoning": (
+                    f"Selected {model['name']}: Detected black-and-white manga / line art "
+                    f"({confidence}% confidence). Activating 4-pillar outline engine with "
+                    "screentone protection and paper purification."
+                )
             }
 
-        # 2. General photo fallback
+        # 2. Anime / Digital illustration
+        if category == "anime" and ("realesrgan-x4plus-anime" in available_models or "realesr-animevideov3" in available_models):
+            model_key = "realesrgan-x4plus-anime" if "realesrgan-x4plus-anime" in available_models else "realesr-animevideov3"
+            model = available_models[model_key]
+            recommended_params["preset"] = "smooth_clean"
+            return {
+                "selected_model": model["id"],
+                "model_name": model["name"],
+                "scale": 4,
+                "preset": "smooth_clean",
+                "recommended_parameters": recommended_params,
+                "reasoning": (
+                    f"Selected {model['name']}: Image classified as anime/illustration "
+                    f"({confidence}% confidence). Optimized for clean stroke borders and color gradients."
+                )
+            }
+
+        # 3. General photo fallback
         if "realesrgan-x4plus" in available_models:
             model = available_models["realesrgan-x4plus"]
             degrad_notes = []
             if is_blurry:
-                degrad_notes.append("mild blur detected")
+                degrad_notes.append("mild blur")
             if noise > 4.5:
-                degrad_notes.append(f"visible noise (sigma={noise})")
+                degrad_notes.append(f"noise (sigma={noise})")
 
             reason_extra = f" with {', '.join(degrad_notes)}" if degrad_notes else ""
-            reason = (
-                f"Selected {model['name']}: Natural photo content{reason_extra}. "
-                "Fits available 4GB VRAM on RTX 2050 (Vulkan 0)."
-            )
             return {
                 "selected_model": model["id"],
                 "model_name": model["name"],
                 "scale": 4,
-                "reasoning": reason
+                "preset": "natural",
+                "recommended_parameters": recommended_params,
+                "reasoning": f"Selected {model['name']}: Natural photo content{reason_extra}. Standard neural restoration."
             }
 
         # Default fallback

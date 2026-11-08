@@ -1,21 +1,32 @@
 import os
+import sys
 import subprocess
+import pytest
 from PIL import Image
 
-def test_ncnn_executable_exists():
-    exe_path = os.path.abspath(r"tools\realesrgan-ncnn-vulkan\realesrgan-ncnn-vulkan.exe")
+def get_ncnn_paths():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    bin_name = "realesrgan-ncnn-vulkan.exe" if sys.platform.startswith("win") else "realesrgan-ncnn-vulkan"
+    exe_path = os.path.join(root, "tools", "realesrgan-ncnn-vulkan", bin_name)
+    models_dir = os.path.join(root, "tools", "realesrgan-ncnn-vulkan", "models")
+    return exe_path, models_dir
+
+def test_ncnn_executable_exists(requires_ncnn):
+    exe_path, _ = get_ncnn_paths()
     assert os.path.isfile(exe_path), f"Executable missing at {exe_path}"
 
-def test_model_weights_and_param_exist():
-    bin_path = os.path.abspath(r"tools\realesrgan-ncnn-vulkan\models\realesrgan-x4plus.bin")
-    param_path = os.path.abspath(r"tools\realesrgan-ncnn-vulkan\models\realesrgan-x4plus.param")
+def test_model_weights_and_param_exist(requires_ncnn):
+    _, models_dir = get_ncnn_paths()
+    bin_path = os.path.join(models_dir, "realesrgan-x4plus.bin")
+    param_path = os.path.join(models_dir, "realesrgan-x4plus.param")
     assert os.path.isfile(bin_path), f"Binary weights missing at {bin_path}"
     assert os.path.isfile(param_path), f"Param file missing at {param_path}"
 
-def test_real_inference_output():
-    exe_path = os.path.abspath(r"tools\realesrgan-ncnn-vulkan\realesrgan-ncnn-vulkan.exe")
-    in_path = os.path.abspath(r"tests\fixtures\test_input.png")
-    out_path = os.path.abspath(r"storage\outputs\test_output_4x.png")
+def test_real_inference_output(requires_ncnn):
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    exe_path, _ = get_ncnn_paths()
+    in_path = os.path.join(root, "tests", "fixtures", "test_input.png")
+    out_path = os.path.join(root, "storage", "outputs", "test_output_4x.png")
     
     assert os.path.isfile(in_path), "Input fixture missing"
     
@@ -37,7 +48,6 @@ def test_real_inference_output():
     assert out_img.size == (in_img.size[0] * 4, in_img.size[1] * 4)
     assert os.path.getsize(out_path) > 10_000, "Output file is suspiciously small / mock"
     
-    # Clean up test output so storage remains clean
     if os.path.isfile(out_path):
         try:
             os.remove(out_path)

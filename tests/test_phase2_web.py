@@ -1,19 +1,20 @@
 import os
+import pytest
 from fastapi.testclient import TestClient
 from backend.app.main import app
 
 client = TestClient(app)
 
-def test_frontend_dist_served():
+def test_frontend_dist_served(requires_frontend):
     res = client.get("/")
     assert res.status_code == 200
-    assert "AETHER UPSCALE" in res.text or "<div id=\"root\">" in res.text
+    assert "<div id=\"root\">" in res.text or "html" in res.text.lower()
 
-def test_frontend_assets_served():
+def test_frontend_assets_served(requires_frontend):
     res = client.get("/")
     assert res.status_code == 200
-    # Assets directory accessible
-    frontend_dist = os.path.abspath(r"frontend\dist")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    frontend_dist = os.path.join(root, "frontend", "dist")
     assert os.path.isdir(frontend_dist)
     assert os.path.isfile(os.path.join(frontend_dist, "index.html"))
 

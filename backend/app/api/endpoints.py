@@ -4,6 +4,7 @@ import asyncio
 import json
 import io
 import zipfile
+import tempfile
 from typing import Optional, List
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Query
 from fastapi.responses import FileResponse, StreamingResponse, Response
@@ -30,6 +31,16 @@ from backend.app.services.preset_service import preset_service
 router = APIRouter()
 
 ALLOWED_MIME_TYPES = {"image/png", "image/jpeg", "image/webp", "image/bmp", "image/tiff"}
+MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB safety cap
+
+def validate_uuid(val: str) -> str:
+    """Strictly validates UUID structure to prevent path traversal and injection attacks."""
+    try:
+        val_clean = val.strip()
+        parsed = uuid.UUID(val_clean)
+        return str(parsed)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid resource identifier format.")
 
 @router.get("/health")
 def health_check():
@@ -41,12 +52,22 @@ def list_presets():
 
 @router.get("/system/capabilities")
 def get_capabilities():
+    import platform
+    import psutil
+
+    total_ram_mb = int(psutil.virtual_memory().total // (1024 * 1024))
+    from ai_engine.models.ncnn_adapter import NCNNRealESRGANAdapter
+    temp_adapter = NCNNRealESRGANAdapter()
+    devs = temp_adapter.get_vulkan_devices()
+    vulkan_name = devs.get(settings.VULKAN_DEVICE_INDEX) or (list(devs.values())[0] if devs else "Vulkan Device")
+
     return {
-        "os": "Windows 11",
-        "gpu": "NVIDIA GeForce RTX 2050",
-        "total_vram_mb": 4096,
+        "os": f"{platform.system()} {platform.release()}",
+        "cpu": platform.processor() or platform.machine(),
+        "total_ram_mb": total_ram_mb,
+        "gpu": vulkan_name,
         "vulkan_device_index": settings.VULKAN_DEVICE_INDEX,
-        "vulkan_device_name": "NVIDIA GeForce RTX 2050",
+        "vulkan_device_name": vulkan_name,
         "active_backend": "ncnn-vulkan",
         "max_output_megapixels": settings.MAX_OUTPUT_MEGAPIXELS
     }
@@ -107,6 +128,12 @@ async def upload_image(file: UploadFile = File(...)):
     dest_path = os.path.join(settings.STORAGE_ROOT, "uploads", save_filename)
 
     contents = await file.read()
+    if len(contents) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Upload exceeds maximum allowed size of {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB."
+        )
+
     with open(dest_path, "wb") as f:
         f.write(contents)
 
@@ -420,8 +447,14 @@ def delete_job_endpoint(job_id: str):
 
 @router.get("/jobs/{job_id}/preview")
 def get_job_preview(job_id: str):
-    preview_path = os.path.join(settings.STORAGE_ROOT, "previews", f"{job_id}_preview.jpg")
-    if not os.path.isfile(preview_path):
+    valid_id = validate_uuid(job_id)
+    job = get_job(valid_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    previews_dir = os.path.abspath(os.path.join(settings.STORAGE_ROOT, "previews"))
+    preview_path = os.path.abspath(os.path.join(previews_dir, f"{valid_id}_preview.jpg"))
+    if not preview_path.startswith(previews_dir) or not os.path.isfile(preview_path):
         raise HTTPException(status_code=404, detail="Preview not available yet.")
     return FileResponse(preview_path, media_type="image/jpeg")
 
@@ -434,12 +467,14 @@ def get_job_crop(
     height: int = Query(default=256, ge=16, le=2048)
 ):
     """100% full-resolution cropped inspection endpoint without browser memory overflow."""
-    job = get_job(job_id)
+    valid_id = validate_uuid(job_id)
+    job = get_job(valid_id)
     if not job or job["status"] != "completed" or not job["output_path"]:
         raise HTTPException(status_code=404, detail="Output result not available.")
 
-    output_path = job["output_path"]
-    if not os.path.isfile(output_path):
+    output_path = os.path.abspath(job["output_path"])
+    storage_root = os.path.abspath(settings.STORAGE_ROOT)
+    if not output_path.startswith(storage_root) or not os.path.isfile(output_path):
         raise HTTPException(status_code=404, detail="Result file missing from storage.")
 
     try:
@@ -464,12 +499,14 @@ def download_job_result(
     format: Optional[str] = Query(default=None),
     quality: Optional[int] = Query(default=95, ge=1, le=100)
 ):
-    job = get_job(job_id)
+    valid_id = validate_uuid(job_id)
+    job = get_job(valid_id)
     if not job or job["status"] != "completed" or not job["output_path"]:
         raise HTTPException(status_code=404, detail="Output result not available.")
 
-    output_path = job["output_path"]
-    if not os.path.isfile(output_path):
+    output_path = os.path.abspath(job["output_path"])
+    storage_root = os.path.abspath(settings.STORAGE_ROOT)
+    if not output_path.startswith(storage_root) or not os.path.isfile(output_path):
         raise HTTPException(status_code=404, detail="Result file missing from storage.")
 
     # If no format conversion requested, serve file directly
@@ -481,7 +518,7 @@ def download_job_result(
         return FileResponse(
             output_path,
             media_type=mime,
-            filename=f"aether_upscale_{job_id}.{current_ext}"
+            filename=f"image_upscale_{valid_id}.{current_ext}"
         )
 
     # Perform on-the-fly format conversion
@@ -506,40 +543,70 @@ def download_job_result(
             return Response(
                 content=buf.getvalue(),
                 media_type=mime,
-                headers={"Content-Disposition": f'attachment; filename="aether_upscale_{job_id}.{ext}"'}
+                headers={"Content-Disposition": f'attachment; filename="image_upscale_{valid_id}.{ext}"'}
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Format conversion failed: {str(e)}")
 
 @router.post("/jobs/batch/download-zip")
-def download_batch_zip(req: BatchZipRequest):
+def download_batch_zip(req: BatchZipRequest, background_tasks: BackgroundTasks):
     if not req.job_ids:
         raise HTTPException(status_code=400, detail="No job IDs specified.")
 
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        added_count = 0
-        for jid in req.job_ids:
-            job = get_job(jid)
-            if not job or job.get("status") != "completed" or not job.get("output_path"):
-                continue
-            out_path = job["output_path"]
-            if os.path.isfile(out_path):
+    # Write ZIP to temporary disk file to prevent RAM exhaustion on large batches
+    temp_zip = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    temp_zip_path = temp_zip.name
+    temp_zip.close()
+
+    added_count = 0
+    try:
+        with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for jid in req.job_ids:
+                try:
+                    valid_jid = validate_uuid(jid)
+                except HTTPException:
+                    continue
+                job = get_job(valid_jid)
+                if not job or job.get("status") != "completed" or not job.get("output_path"):
+                    continue
+                out_path = os.path.abspath(job["output_path"])
+                storage_root = os.path.abspath(settings.STORAGE_ROOT)
+                temp_root = os.path.abspath(tempfile.gettempdir())
+                if not (out_path.startswith(storage_root) or out_path.startswith(temp_root)) or not os.path.isfile(out_path):
+                    continue
+
                 filename = os.path.basename(out_path)
                 zf.write(out_path, arcname=filename)
                 added_count += 1
 
-                # Include sidecar manifest if present
                 manifest_path = f"{out_path}.manifest.json"
                 if os.path.isfile(manifest_path):
                     zf.write(manifest_path, arcname=f"{filename}.manifest.json")
 
-    if added_count == 0:
-        raise HTTPException(status_code=404, detail="No completed image files found to package.")
+        if added_count == 0:
+            if os.path.exists(temp_zip_path):
+                os.remove(temp_zip_path)
+            raise HTTPException(status_code=404, detail="No completed image files found to package.")
 
-    zip_buffer.seek(0)
-    return Response(
-        content=zip_buffer.getvalue(),
-        media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="aether_batch_upscaled.zip"'}
-    )
+        def cleanup_temp_zip():
+            if os.path.exists(temp_zip_path):
+                try:
+                    os.remove(temp_zip_path)
+                except Exception:
+                    pass
+
+        background_tasks.add_task(cleanup_temp_zip)
+        return FileResponse(
+            temp_zip_path,
+            media_type="application/zip",
+            filename="upscale_batch_export.zip"
+        )
+    except Exception as e:
+        if os.path.exists(temp_zip_path):
+            try:
+                os.remove(temp_zip_path)
+            except Exception:
+                pass
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Failed to generate batch zip: {str(e)}")

@@ -11,8 +11,7 @@ class JobPausedException(Exception):
 class TileEngine:
     """
     Seamless tiled inference engine with feathered blending and OOM recovery.
-    Enforces maximum output pixel cap (100 MP) per PRD Section 4.1.
-    Supports Per-Tile Scale Adaptation (Part F4 & ADR 005) and TileStore checkpoints.
+    Supports Per-Tile Scale Adaptation, multi-tile batch inference, and TileStore checkpoints.
     """
 
     def __init__(self, default_tile_size: int = 256, overlap: int = 32, max_output_mp: int = 100):
@@ -115,7 +114,7 @@ class TileEngine:
     def process(
         self,
         img: Image.Image,
-        infer_fn: Callable[[Image.Image], Image.Image],
+        infer_fn: Optional[Callable[[Image.Image], Image.Image]] = None,
         scale: int = 4,
         target_scale: Optional[float] = None,
         tile_size: Optional[int] = None,
@@ -125,10 +124,11 @@ class TileEngine:
         pause_check: Optional[Callable[[], bool]] = None,
         tile_store: Optional[Any] = None,
         stage_id: Optional[str] = None,
-        auto_oom_retry: bool = True
+        auto_oom_retry: bool = True,
+        batch_infer_fn: Optional[Callable[[List[Image.Image]], List[Image.Image]]] = None
     ) -> Image.Image:
         """
-        Splits image into overlapping tiles, processes each with infer_fn,
+        Splits image into overlapping tiles, processes each with batch_infer_fn or infer_fn,
         and seamlessly stitches them with cosine feathered blending.
         Supports target_scale (Per-Tile Scale Adaptation) and TileStore checkpoints.
         """
@@ -153,7 +153,13 @@ class TileEngine:
                 raise RuntimeError("Job cancelled by user")
             if pause_check and pause_check():
                 raise JobPausedException("Job paused by user")
-            res = infer_fn(img)
+            if batch_infer_fn:
+                res = batch_infer_fn([img])[0]
+            elif infer_fn:
+                res = infer_fn(img)
+            else:
+                raise ValueError("Either infer_fn or batch_infer_fn must be provided")
+
             if eff_scale != float(scale) or res.size != (out_w, out_h):
                 res = res.resize((out_w, out_h), Image.Resampling.LANCZOS)
             if progress_cb:
@@ -172,7 +178,8 @@ class TileEngine:
                 cancel_check=cancel_check,
                 pause_check=pause_check,
                 tile_store=tile_store,
-                stage_id=stage_id
+                stage_id=stage_id,
+                batch_infer_fn=batch_infer_fn
             )
         except JobPausedException:
             raise
@@ -196,14 +203,15 @@ class TileEngine:
                     pause_check=pause_check,
                     tile_store=tile_store,
                     stage_id=stage_id,
-                    auto_oom_retry=True
+                    auto_oom_retry=True,
+                    batch_infer_fn=batch_infer_fn
                 )
             raise e
 
     def _execute_tiling(
         self,
         img: Image.Image,
-        infer_fn: Callable[[Image.Image], Image.Image],
+        infer_fn: Optional[Callable[[Image.Image], Image.Image]],
         scale: int,
         target_scale: Optional[float],
         tile_size: int,
@@ -212,7 +220,8 @@ class TileEngine:
         cancel_check: Optional[Callable[[], bool]],
         pause_check: Optional[Callable[[], bool]] = None,
         tile_store: Optional[Any] = None,
-        stage_id: Optional[str] = None
+        stage_id: Optional[str] = None,
+        batch_infer_fn: Optional[Callable[[List[Image.Image]], List[Image.Image]]] = None
     ) -> Image.Image:
         in_w, in_h = img.size
         eff_scale = float(target_scale) if target_scale is not None else float(scale)
@@ -235,6 +244,21 @@ class TileEngine:
         if tile_store and stage_id:
             completed_tiles = tile_store.get_completed_tiles(stage_id)
 
+        # Batch optimization: if batch_infer_fn is provided, infer all uncompleted tiles in one shot
+        batch_cache = {}
+        if batch_infer_fn:
+            missing_tiles = [t for t in tiles if (t["gx"], t["gy"]) not in completed_tiles]
+            if missing_tiles:
+                if cancel_check and cancel_check():
+                    raise RuntimeError("Job cancelled by user")
+                crops = [img.crop(t["box"]) for t in missing_tiles]
+                upscaled_batch = batch_infer_fn(crops)
+                for t, up_tile in zip(missing_tiles, upscaled_batch):
+                    gx, gy = t["gx"], t["gy"]
+                    batch_cache[(gx, gy)] = up_tile
+                    if tile_store and stage_id:
+                        tile_store.save_tile(stage_id, gx, gy, up_tile)
+
         for idx, t in enumerate(tiles):
             if cancel_check and cancel_check():
                 raise RuntimeError("Job cancelled by user")
@@ -255,14 +279,21 @@ class TileEngine:
 
             if (gx, gy) in completed_tiles:
                 tile_out = tile_store.load_tile(completed_tiles[(gx, gy)])
+            elif (gx, gy) in batch_cache:
+                tile_out = batch_cache[(gx, gy)]
             else:
                 tile_in = img.crop((x1, y1, x2, y2))
-                # Execute model on tile
-                tile_out = infer_fn(tile_in)
+                if infer_fn:
+                    tile_out = infer_fn(tile_in)
+                else:
+                    raise ValueError("No inference function available for tile")
 
-                # Ensure expected adapted dimensions (Per-Tile Scale Adaptation)
-                if tile_out.size != (exp_tw, exp_th):
-                    tile_out = tile_out.resize((exp_tw, exp_th), Image.Resampling.LANCZOS)
+                if tile_store and stage_id:
+                    tile_store.save_tile(stage_id, gx, gy, tile_out)
+
+            # Ensure expected adapted dimensions
+            if tile_out.size != (exp_tw, exp_th):
+                tile_out = tile_out.resize((exp_tw, exp_th), Image.Resampling.LANCZOS)
 
                 if tile_store and stage_id:
                     tile_store.save_tile(stage_id, gx, gy, tile_out)

@@ -64,12 +64,12 @@ def init_db() -> None:
                 created_at REAL NOT NULL
             );
         """)
-        conn.execute("UPDATE jobs SET status = 'failed', error = 'Server restarted while job was in progress' WHERE status IN ('processing', 'queued')")
+        conn.execute("UPDATE jobs SET status = 'failed', error = 'Server restarted while job was in progress' WHERE status = 'processing'")
         conn.commit()
 
-    # Apply forward migrations to Version Graph (Part E2a)
+    # Apply forward migrations to Version Graph
     migration_service.migrate(settings.DATABASE_PATH)
-    # Startup reconciliation of storage (Part E2.3)
+    # Startup reconciliation of storage
     storage_service.reconcile_startup()
 
 # --- Legacy Image & Job Helpers (Preserved for 100% Backward Compatibility) ---
@@ -198,7 +198,7 @@ def clear_queued_jobs() -> int:
         conn.commit()
         return cur.rowcount
 
-# --- AETHER 2.0 Version Graph Database Operations (Part E) ---
+# --- Version Graph Database Operations ---
 
 def create_project(project_id: str, name: str, source_image_id: str, settings_dict: Optional[Dict[str, Any]] = None) -> None:
     now = time.time()

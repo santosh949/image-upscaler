@@ -58,3 +58,13 @@ def test_no_local_filesystem_paths_in_api_responses():
     assert "storage_path" not in img_data
     assert "C:\\" not in str(img_data)
     assert "/Users/" not in str(img_data)
+
+def test_oversized_upload_rejected():
+    # Attempt upload exceeding 50 MB
+    huge_data = io.BytesIO(b"0" * (51 * 1024 * 1024))
+    resp = client.post(
+        "/api/v1/images",
+        files={"file": ("huge.png", huge_data, "image/png")}
+    )
+    assert resp.status_code == 413
+    assert "exceeds maximum allowed size" in resp.json()["detail"]

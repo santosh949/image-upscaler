@@ -73,24 +73,35 @@ class ImageAnalyzer:
             else:
                 jpeg_quality = 90
 
-        # 4. Category Classification Heuristics (Anime vs Photo)
+        # 4. Category Classification Heuristics (Manga / Anime / Photo)
         hsv = cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2HSV)
         sat = hsv[:, :, 1]
         mean_saturation = float(np.mean(sat)) / 255.0
 
-        # Edge statistics: anime usually has sharp outlines and flat color regions
+        # Edge statistics: sharp outlines and high contrast transitions
         edges = cv2.Canny(gray, 100, 200)
         edge_density = float(np.mean(edges > 0))
 
         # Palette count in quantized space
         colors_sampled = len(np.unique(gray // 16))
 
-        if mean_saturation > 0.30 and colors_sampled < 14 and edge_density > 0.02:
+        # Luminance distribution checks for black-and-white manga / line art
+        dark_ratio = float(np.mean(gray < 60))
+        bright_ratio = float(np.mean(gray > 200))
+        is_bimodal = (dark_ratio > 0.02 and bright_ratio > 0.35)
+
+        if mean_saturation < 0.10 and is_bimodal and edge_density > 0.015:
+            # Monochrome / Grayscale Manga & Line Art
+            detected_category = "manga"
+            cat_confidence = min(0.96, round(0.70 + (1.0 - mean_saturation) * 0.25, 2))
+        elif mean_saturation > 0.25 and colors_sampled < 14 and edge_density > 0.02:
+            # Color Anime / Digital Illustration
             detected_category = "anime"
-            cat_confidence = min(0.95, round(0.6 + mean_saturation * 0.3, 2))
+            cat_confidence = min(0.95, round(0.60 + mean_saturation * 0.30, 2))
         else:
+            # Natural Photo / Complex continuous tone
             detected_category = "photo"
-            cat_confidence = min(0.90, round(0.55 + (1.0 - mean_saturation) * 0.35, 2))
+            cat_confidence = min(0.90, round(0.55 + max(0.0, 0.5 - abs(mean_saturation - 0.3)) * 0.35, 2))
 
         return {
             "width": width,
@@ -104,7 +115,9 @@ class ImageAnalyzer:
             "has_high_noise": has_high_noise,
             "jpeg_quality_estimate": jpeg_quality,
             "detected_category": detected_category,
-            "category_confidence": cat_confidence
+            "category_confidence": cat_confidence,
+            "mean_saturation": round(mean_saturation, 3),
+            "edge_density": round(edge_density, 4)
         }
 
 analyzer = ImageAnalyzer()

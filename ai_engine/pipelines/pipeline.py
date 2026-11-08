@@ -1,5 +1,6 @@
 import os
 import time
+import shutil
 import tempfile
 from typing import Dict, Any, Optional, Callable, List
 from PIL import Image
@@ -141,9 +142,41 @@ class EnhancementPipeline:
                     if os.path.exists(temp_out_path):
                         os.remove(temp_out_path)
 
+            def ncnn_batch_infer_tiles(tile_list: List[Image.Image]) -> List[Image.Image]:
+                if not tile_list:
+                    return []
+                temp_ins = []
+                temp_outs = []
+                temp_dir = tempfile.mkdtemp(prefix="pipeline_batch_")
+                try:
+                    for i, t in enumerate(tile_list):
+                        p_in = os.path.join(temp_dir, f"in_{i:05d}.png")
+                        p_out = os.path.join(temp_dir, f"out_{i:05d}.png")
+                        t.save(p_in, format="PNG")
+                        temp_ins.append(p_in)
+                        temp_outs.append(p_out)
+
+                    self.adapter.enhance_batch(
+                        input_paths=temp_ins,
+                        output_paths=temp_outs,
+                        scale=actual_scale,
+                        tile_size=tile_size,
+                        gpu_id=gpu_id,
+                        model_name=model_name
+                    )
+
+                    results = []
+                    for p_out in temp_outs:
+                        with Image.open(p_out) as im:
+                            results.append(im.copy())
+                    return results
+                finally:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+
             upscaled = self.tile_engine.process(
                 img=cleaned_rgb,
                 infer_fn=ncnn_infer_tile,
+                batch_infer_fn=ncnn_batch_infer_tiles,
                 scale=actual_scale,
                 tile_size=tile_size,
                 overlap=32,
@@ -239,6 +272,7 @@ class EnhancementPipeline:
             "model": model_name,
             "scale": actual_scale,
             "stages": stages_executed,
+            "stages_executed": stages_executed,
             "input_dimensions": [in_w, in_h],
             "output_dimensions": [out_w, out_h],
             "elapsed_seconds": round(elapsed, 3),

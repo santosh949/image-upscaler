@@ -6,6 +6,7 @@ import pytest
 from PIL import Image
 from fastapi.testclient import TestClient
 from backend.app.main import app
+from backend.app.core.config import settings
 from backend.app.database import get_job, update_job_status
 from backend.app.services.job_manager import job_manager
 
@@ -66,14 +67,16 @@ def test_batch_jobs_creation_and_queue(sample_images):
     q_data = q_res.json()
     assert "total_queued" in q_data
 
-def test_batch_zip_download(tmp_path):
+def test_batch_zip_download():
     import uuid
     job_ids = []
+    out_dir = os.path.join(settings.STORAGE_ROOT, "outputs")
+    os.makedirs(out_dir, exist_ok=True)
     for i in range(2):
-        fake_id = f"test_zip_job_{uuid.uuid4().hex[:8]}"
-        out_file = tmp_path / f"{fake_id}_out.png"
+        fake_id = str(uuid.uuid4())
+        out_file = os.path.join(out_dir, f"{fake_id}_out.png")
         img = Image.new("RGB", (64, 64), (100, 200, 50))
-        img.save(str(out_file))
+        img.save(out_file)
 
         from backend.app.database import create_job
         create_job(
@@ -104,8 +107,9 @@ def test_batch_zip_download(tmp_path):
     assert any(job_ids[0] in name for name in namelist)
 
 def test_clear_queue():
+    import uuid
     from backend.app.database import create_job
-    fake_id = f"test_clear_job_{int(time.time())}"
+    fake_id = str(uuid.uuid4())
     create_job(
         job_id=fake_id,
         image_id="fake_img",

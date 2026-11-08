@@ -2,6 +2,8 @@ import os
 import sys
 import time
 import tempfile
+import threading
+import subprocess
 import psutil
 import numpy as np
 from PIL import Image
@@ -11,6 +13,45 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ai_engine.pipelines.pipeline import pipeline
 from ai_engine.memory.memory_manager import memory_manager
 from backend.app.core.config import settings
+
+class VRAMTracker:
+    def __init__(self, interval: float = 0.05):
+        self.interval = interval
+        self.stop_event = threading.Event()
+        self.peak_vram_mb = 0.0
+        self.initial_vram_mb = 0.0
+        self.thread = None
+
+    def _query(self) -> float:
+        try:
+            cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            out = subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+                text=True, creationflags=cf
+            )
+            return float(out.strip())
+        except Exception:
+            return 0.0
+
+    def start(self):
+        self.initial_vram_mb = self._query()
+        self.peak_vram_mb = self.initial_vram_mb
+        self.stop_event.clear()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def _run(self):
+        while not self.stop_event.is_set():
+            v = self._query()
+            if v > self.peak_vram_mb:
+                self.peak_vram_mb = v
+            time.sleep(self.interval)
+
+    def stop(self) -> float:
+        self.stop_event.set()
+        if self.thread:
+            self.thread.join(timeout=0.5)
+        return self.peak_vram_mb
 
 def generate_synthetic_benchmark_image(width: int, height: int, path: str):
     """Generates synthetic high-frequency test patterns (color gradient + sine wave texture)."""
@@ -57,6 +98,8 @@ def run_benchmarks():
 
             generate_synthetic_benchmark_image(tc["w"], tc["h"], in_file)
 
+            vram_tracker = VRAMTracker()
+            vram_tracker.start()
             mem_before = psutil.virtual_memory().used / (1024 * 1024)
             t0 = time.perf_counter()
 
@@ -71,6 +114,7 @@ def run_benchmarks():
             )
 
             elapsed = time.perf_counter() - t0
+            peak_vram = vram_tracker.stop()
             mem_after = psutil.virtual_memory().used / (1024 * 1024)
             delta_mem = max(0.0, mem_after - mem_before)
 
@@ -90,10 +134,11 @@ def run_benchmarks():
                 "elapsed_s": round(elapsed, 3),
                 "out_mp": round(out_mp, 2),
                 "throughput_out_mp_s": round(throughput_out, 3),
-                "ram_delta_mb": round(delta_mem, 1)
+                "ram_delta_mb": round(delta_mem, 1),
+                "peak_vram_mb": round(peak_vram, 1)
             }
             results.append(bench_entry)
-            print(f"  ✓ Finished in {elapsed:.3f}s -> {out_w}x{out_h} ({out_mp:.2f} MP) | {throughput_out:.2f} MP/s")
+            print(f"  ✓ Finished in {elapsed:.3f}s -> {out_w}x{out_h} ({out_mp:.2f} MP) | {throughput_out:.2f} MP/s | Peak VRAM: {peak_vram:.1f} MB")
 
     finally:
         import shutil
@@ -115,13 +160,13 @@ def run_benchmarks():
         "",
         "## Inference Throughput & Latency",
         "",
-        "| Benchmark Test | Mode | Scale | Input Res | Output Res | Output MP | Latency (s) | Throughput (MP/s) |",
-        "|---|---|---|---|---|---|---|---|"
+        "| Benchmark Test | Mode | Scale | Input Res | Output Res | Output MP | Latency (s) | Throughput (MP/s) | Peak VRAM (MB) |",
+        "|---|---|---|---|---|---|---|---|---|"
     ]
 
     for r in results:
         md_lines.append(
-            f"| {r['name']} | `{r['mode']}` | {r['scale']}x | {r['input_res']} | {r['output_res']} | {r['out_mp']} MP | {r['elapsed_s']}s | {r['throughput_out_mp_s']} MP/s |"
+            f"| {r['name']} | `{r['mode']}` | {r['scale']}x | {r['input_res']} | {r['output_res']} | {r['out_mp']} MP | {r['elapsed_s']}s | {r['throughput_out_mp_s']} MP/s | {r.get('peak_vram_mb', 'N/A')} MB |"
         )
 
     md_lines.extend([

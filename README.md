@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev)
 [![Vulkan](https://img.shields.io/badge/Vulkan-1.4-red.svg)](https://www.vulkan.org)
-[![Tests Passing](https://img.shields.io/badge/tests-71%2F71%20passed-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/tests-83%2F83%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **A free, local AI super-resolution studio designed to scale images up to 8K UHD on consumer hardware.**  
@@ -127,16 +127,31 @@ Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.
 
 ## 🧪 Benchmarks
 
-Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA GeForce RTX 2050 Mobile 4 GB VRAM, Windows 11, Vulkan):
+Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA GeForce RTX 2050 Mobile 4 GB VRAM, Windows 11, Vulkan Device #0).  
+Full methodology and raw logs: [`benchmarks/BENCHMARK_RESULTS.md`](benchmarks/BENCHMARK_RESULTS.md).
 
-| Benchmark Test | Mode | Scale | Input Resolution | Output Resolution | Output Megapixels | Latency | Peak VRAM |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Direct 4× Photo** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **4.99 s** | 1.97 GB |
-| **Anime Line Art** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **2.62 s** | 1.81 GB |
-| **Classical Restore** | `restore` | 1× | 256 × 256 | 256 × 256 | 0.07 MP | **0.35 s** | 161 MB |
-| **Combined Restore + 4×** | `restore_upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **4.66 s** | 1.98 GB |
-| **Tiled 4× Photo (Chunked 8-batch)** | `upscale` | 4× | 512 × 512 | 2048 × 2048 | 4.19 MP | **13.08 s** | 3.55 GB |
-| **4K → 8K UHD (Progressive 2×)** | `upscale` | 2× | 3840 × 2160 | 7680 × 4320 | 33.18 MP | **99.15 s** | 3.37 GB |
+> **VRAM Telemetry Disclosure:** `Baseline VRAM` reflects pre-inference system state. `Peak Total VRAM` reflects maximum absolute GPU memory during inference. `Est. Incremental VRAM` indicates estimated memory headroom consumed (peak minus baseline), not claimed as exact isolated allocation.
+
+### Category A: Real Photographic Benchmarks (`realesrgan-x4plus`)
+| Test Case | Mode | Scale | Input | Output | Megapixels | Latency | Baseline VRAM | Peak Total VRAM | Est. Incremental |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Real Photo 256×256** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **6.46 s** | 129 MB | 1941 MB | +1812 MB |
+| **Real Photo 512×512 (Tiled)** | `upscale` | 4× | 512 × 512 | 2048 × 2048 | 4.19 MP | **14.54 s** | 120 MB | 3517 MB | +3397 MB |
+
+### Category B: Real Illustration & Manga Benchmarks (Anime Models)
+| Test Case | Model | Scale | Input | Output | Megapixels | Latency | Baseline VRAM | Peak Total VRAM | Est. Incremental |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Real Manga (Manga Crisp)** | `realesrgan-x4plus-anime` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **2.69 s** | 124 MB | 1786 MB | +1662 MB |
+| **Real Manga 512×512 (Tiled)** | `realesrgan-x4plus-anime` | 4× | 512 × 512 | 2048 × 2048 | 4.19 MP | **6.06 s** | 144 MB | 3358 MB | +3214 MB |
+| **Real Manga (AnimeVideo v3)** | `realesr-animevideov3-x4` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **1.58 s** | 126 MB | 166 MB | +40 MB |
+
+### Category C: Synthetic Signal & Stress Benchmarks
+| Test Case | Mode | Scale | Input | Output | Megapixels | Latency | Baseline VRAM | Peak Total VRAM | Est. Incremental |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Synthetic 256×256** | `upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **4.72 s** | 126 MB | 1947 MB | +1821 MB |
+| **Classical Restore** | `restore` | 1× | 256 × 256 | 256 × 256 | 0.07 MP | **0.37 s** | 126 MB | 126 MB | +0 MB |
+| **Combined Restore + 4×** | `restore_upscale` | 4× | 256 × 256 | 1024 × 1024 | 1.05 MP | **4.33 s** | 126 MB | 1938 MB | +1812 MB |
+| **Synthetic 512×512 Tiled** | `upscale` | 4× | 512 × 512 | 2048 × 2048 | 4.19 MP | **12.02 s** | 117 MB | 3506 MB | +3389 MB |
 
 ---
 
@@ -167,13 +182,13 @@ Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA 
 
 ## 🔬 Testing
 
-Includes **71 automated tests** covering tiling boundaries, memory limits, edge normal steepening, batch queue ordering, security validation, and metadata provenance:
+Includes **83 automated tests** covering tiling boundaries, memory limits, edge normal steepening, batch queue ordering, execution control (cancellation, pause, checkpoint recovery), security validation, and metadata provenance:
 
 ```bash
 pytest tests/
 ```
 ```text
-======================= 71 passed =======================
+======================= 83 passed =======================
 ```
 
 ---

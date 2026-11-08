@@ -51,6 +51,25 @@ tools/realesrgan-ncnn-vulkan/models/*
 .vscode/
 *.log
 
-# Internal Agent Workspaces / Scratch
+# Internal Agent Workspaces, Planning & Skills (Kept locally, never in git)
 .agents/
 graphify-out/
+AGENTS.md
+SKILLS.md
+task_plan.md
+findings.md
+progress.md
+
+# Internal Design Specs & Phase Audits
+docs/specs/
+docs/*AUDIT*.md
+docs/*STATUS*.md
+docs/*REMAINING*.md
+docs/*TRACE*.md
+docs/*REPORT*.md
+docs/DECISIONS.md
+docs/TEST_PLAN.md
+
+# Internal Development Scripts (Only setup_environment.py distributed)
+scripts/*
+!scripts/setup_environment.py

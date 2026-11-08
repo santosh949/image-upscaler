@@ -1,4 +1,4 @@
-# AETHER UPSCALE 2.0
+# AI Image Upscaler
 
 <div align="center">
 
@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Local-first, privacy-respecting AI super-resolution & image restoration studio.**  
-*Engineered to run 8K UHD scaling and precision manga inking on budget 4GB VRAM laptops without memory exhaustion.*
+*Engineered to run 8K UHD scaling and precision manga inking on budget 4GB VRAM hardware without memory exhaustion.*
 
 [Features](#-key-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [Manga Engine](#-manga--anime-outline-mastery) • [Benchmarks](#-hardware-benchmarks) • [License](#-license)
 
@@ -18,11 +18,11 @@
 
 ---
 
-## 💡 Why AETHER UPSCALE?
+## 💡 Why This Image Upscaler?
 
-Most AI upscalers are simple API wrappers or heavy Python applications that crash entry-level GPUs with out-of-memory errors when processing large images, while smudging fine manga screentones and pencil line art into blurry mud.
+Most AI upscalers are simple cloud API wrappers or heavy Python scripts that crash entry-level GPUs with out-of-memory errors when processing large images, while smudging fine manga screentones and pencil line art into blurry mud.
 
-**AETHER UPSCALE** is built from the ground up as a **systems-engineered desktop application**:
+This studio is built from the ground up as a **systems-engineered desktop application**:
 * **Zero Cloud Dependencies:** 100% local inference using portable C++ NCNN Vulkan shaders. Zero telemetry, zero paid API tokens.
 * **8K on a 4GB GPU:** Progressive Per-Tile Scale Adaptation scales 4K images to **8K UHD (7680×4320)** without ever loading massive 16K intermediates into system RAM.
 * **Custom Manga & Anime Outline Engine:** Built-in computer vision algorithms providing sub-pixel edge steepening, zero-halo mathematical bounding, and local-variance screentone dot protection.
@@ -92,8 +92,8 @@ Most AI upscalers are simple API wrappers or heavy Python applications that cras
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/your-username/aether-upscale.git
-cd aether-upscale
+git clone https://github.com/santosh949/image-upscaler.git
+cd image-upscaler
 ```
 
 ### 2. Set Up Python Backend
@@ -123,7 +123,7 @@ npm --prefix frontend install
 npm --prefix frontend run build
 ```
 
-### 5. Start Aether Studio
+### 5. Start Studio
 ```bash
 python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
@@ -146,7 +146,7 @@ Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA 
 
 ## 🔬 Automated Testing
 
-AETHER UPSCALE includes **68 automated tests** covering tiling boundaries, memory caps, edge normal steepening, batch queue ordering, and metadata provenance:
+This repository includes **68 automated tests** covering tiling boundaries, memory caps, edge normal steepening, batch queue ordering, and metadata provenance:
 
 ```bash
 pytest tests/

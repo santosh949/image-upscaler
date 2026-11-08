@@ -25,3 +25,4 @@ Thank you for your interest in contributing to **AETHER UPSCALE**!
    - Ensure all 68 automated unit and integration tests pass.
    - Provide visual before/after evidence or benchmark metrics if modifying inference algorithms.
    - Submit PR with clear summary of architectural changes.
+

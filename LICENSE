@@ -34,3 +34,4 @@ This application integrates and wraps third-party open-source libraries and pre-
 2. **NCNN Vulkan Neural Network Inference Framework**
    - Repository: https://github.com/Tencent/ncnn
    - License: BSD 3-Clause License
+

@@ -1,0 +1,11 @@
+[project]
+name = "aether-upscale"
+version = "0.1.0"
+description = "Local-first AI image restoration, enhancement and super-resolution studio"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+

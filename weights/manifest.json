@@ -1,0 +1,49 @@
+{
+  "models": {
+    "realesrgan-x4plus": {
+      "name": "Real-ESRGAN x4plus (NCNN Vulkan)",
+      "format": "ncnn-bin-param",
+      "scale": 4,
+      "tasks": ["super-resolution", "general-photo"],
+      "source_url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
+      "files": {
+        "realesrgan-x4plus.bin": "713EE713B0353AFAA27976F0563A64A5043BD70B9BD8936C2E26E25EBCDBCDDF",
+        "realesrgan-x4plus.param": "35330ECECCEA33B6C397A72548E788D5D53BECEE4734C50B7FADA36E89F10A86"
+      },
+      "code_license": "BSD-3-Clause",
+      "weight_license": "Non-commercial / Unclear (DIV2K & Flickr2K)",
+      "license_class": "non-commercial / unclear",
+      "verified": true
+    },
+    "realesrgan-x4plus-anime": {
+      "name": "Real-ESRGAN x4plus Anime (NCNN Vulkan)",
+      "format": "ncnn-bin-param",
+      "scale": 4,
+      "tasks": ["super-resolution", "anime-art"],
+      "source_url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
+      "files": {
+        "realesrgan-x4plus-anime.bin": "FE01C269CFD10CDEF8E018AB66EBE750CF79C7AF4D1F9C16C737E1295229BACC",
+        "realesrgan-x4plus-anime.param": "2B8FB6E0AE4D2D85704CA08C119A2F5EA40ADD4F2ECD512EB7F4CD44B6127ED4"
+      },
+      "code_license": "BSD-3-Clause",
+      "weight_license": "Non-commercial / Unclear",
+      "license_class": "non-commercial / unclear",
+      "verified": true
+    },
+    "realesr-animevideov3-x4": {
+      "name": "Real-ESRGAN AnimeVideo v3 x4 (NCNN Vulkan)",
+      "format": "ncnn-bin-param",
+      "scale": 4,
+      "tasks": ["super-resolution", "fast-anime", "animation"],
+      "source_url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
+      "files": {
+        "realesr-animevideov3-x4.bin": "548A36F9C3F4AB8DA56CD3B13BADF23968BEE207B396DAD14D04B830E5F2AB2D",
+        "realesr-animevideov3-x4.param": "850A248E7C14C27E5BD8CF7265113A9441036A7DB63963BB8AA5169D788A435E"
+      },
+      "code_license": "BSD-3-Clause",
+      "weight_license": "Non-commercial / Unclear",
+      "license_class": "non-commercial / unclear",
+      "verified": true
+    }
+  }
+}

@@ -1,0 +1,141 @@
+presets:
+  natural:
+    id: natural
+    name: "Natural"
+    task: "photo"
+    model: "realesrgan-x4plus"
+    scale: 4
+    pre_denoise: "none"
+    post_sharpen: "off"
+    texture_blend_weight: 0.20
+    tile_size: 256
+    overlap: 32
+    description: "Natural photographic balance. Classical pre-denoising disabled, low-weight source texture blend applied."
+    warnings: []
+
+  faithful:
+    id: faithful
+    name: "Faithful"
+    task: "photo"
+    model: "realesrgan-x4plus"
+    scale: 4
+    pre_denoise: "none"
+    post_sharpen: "off"
+    texture_blend_weight: 0.10
+    tile_size: 256
+    overlap: 32
+    description: "Strict source faithfulness. No pre-filtering, pure neural reconstruction."
+    warnings: []
+
+  more_detail:
+    id: more_detail
+    name: "More Detail"
+    task: "photo"
+    model: "realesrgan-x4plus"
+    scale: 4
+    pre_denoise: "none"
+    post_sharpen: "low"
+    texture_blend_weight: 0.05
+    tile_size: 256
+    overlap: 32
+    description: "Deep high-frequency neural reconstruction with halo checks. Increased invented-detail tendency."
+    warnings:
+      - "Notice: More Detail generates synthesized neural high-frequency details. Not recommended for forensic or archival faithfulness."
+
+  smooth_clean:
+    id: smooth_clean
+    name: "Smooth & Clean"
+    task: "photo"
+    model: "realesrgan-x4plus"
+    scale: 4
+    pre_denoise: "medium"
+    post_sharpen: "off"
+    texture_blend_weight: 0.0
+    tile_size: 256
+    overlap: 32
+    description: "Aggressive artifact suppression and bilateral smoothing before upscale."
+    warnings:
+      - "Warning: Natural film grain, skin pores, and fine background textures will be softened or lost."
+
+  artwork:
+    id: artwork
+    name: "Artwork (General)"
+    task: "anime"
+    model: "realesrgan-x4plus-anime"
+    scale: 4
+    pre_denoise: "none"
+    post_sharpen: "off"
+    texture_blend_weight: 0.0
+    tile_size: 256
+    overlap: 32
+    description: "General anime, cartoons, and digital illustrations. No photographic denoising."
+    warnings: []
+
+  manga_crisp:
+    id: manga_crisp
+    name: "Manga Master (Inking)"
+    task: "anime"
+    model: "realesrgan-x4plus-anime"
+    scale: 4
+    pre_denoise: "none"
+    post_sharpen: "off"
+    texture_blend_weight: 0.0
+    tile_size: 256
+    overlap: 32
+    outline_engine: true
+    outline_strength: 1.0
+    clean_paper: true
+    deep_ink: true
+    protect_screentones: true
+    neutralize_chromatic: true
+    description: "Industry-leading B&W manga panel and comic inking engine. Sub-pixel edge normal steepening, zero halos, deep black ink, pure paper background, and screentone dot protection."
+    warnings: []
+
+  anime_clean:
+    id: anime_clean
+    name: "Anime Master (Cel Art)"
+    task: "anime"
+    model: "realesrgan-x4plus-anime"
+    scale: 4
+    pre_denoise: "none"
+    post_sharpen: "off"
+    texture_blend_weight: 0.0
+    tile_size: 256
+    overlap: 32
+    outline_engine: true
+    outline_strength: 0.75
+    clean_paper: false
+    deep_ink: false
+    protect_screentones: false
+    neutralize_chromatic: false
+    description: "Digital anime, cartoons, and cel shading. Vector-crisp character line borders with smooth flat color fills."
+    warnings: []
+
+  vintage_cel:
+    id: vintage_cel
+    name: "Vintage 80s/90s Anime"
+    task: "anime"
+    model: "realesrgan-x4plus-anime"
+    scale: 4
+    pre_denoise: "low"
+    post_sharpen: "off"
+    texture_blend_weight: 0.05
+    tile_size: 256
+    overlap: 32
+    description: "Classic retro anime and hand-painted cels. Gentle analog noise suppression while preserving authentic pencil and ink outlines."
+    warnings: []
+
+  custom:
+    id: custom
+    name: "Custom"
+    task: "custom"
+    model: "realesrgan-x4plus"
+    scale: 4
+    pre_denoise: "none"
+    post_sharpen: "off"
+    texture_blend_weight: 0.0
+    tile_size: 256
+    overlap: 32
+    description: "Manual technical overrides."
+    warnings: []
+

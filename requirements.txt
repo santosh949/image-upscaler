@@ -1,0 +1,17 @@
+# Core Backend
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+sse-starlette>=2.1.3
+python-multipart>=0.0.17
+
+# Image & Classical Processing
+Pillow>=11.0.0
+numpy>=2.0.0
+opencv-python-headless>=4.10.0
+
+# Testing & Utilities
+pytest>=8.3.0
+httpx>=0.28.0
+psutil>=6.1.0

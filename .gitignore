@@ -1,0 +1,56 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Storage & Databases (User data, previews, outputs, test runs)
+storage/*
+!storage/uploads/
+!storage/outputs/
+!storage/previews/
+!storage/temp/
+!storage/control/
+!storage/.gitkeep
+
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/outputs/*
+!storage/outputs/.gitkeep
+storage/previews/*
+!storage/previews/.gitkeep
+storage/temp/*
+!storage/temp/.gitkeep
+storage/control/*
+!storage/control/.gitkeep
+
+# Large Binary Weights & Native Tools
+weights/*.pth
+weights/*.bin
+weights/*.param
+weights/*.onnx
+tools/realesrgan-ncnn-vulkan/*.exe
+tools/realesrgan-ncnn-vulkan/*.bin
+tools/realesrgan-ncnn-vulkan/*.param
+tools/realesrgan-ncnn-vulkan/*.dll
+tools/realesrgan-ncnn-vulkan/models/*
+
+# Environment & IDE
+.env
+.env.local
+.idea/
+.vscode/
+*.log
+
+# Internal Agent Workspaces / Scratch
+.agents/
+graphify-out/

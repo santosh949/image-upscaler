@@ -1,0 +1,52 @@
+# Progress Log — AETHER UPSCALE
+
+## 2026-11-07
+- Completed Phase 0 (Environment discovery, NCNN Vulkan binary, Real-ESRGAN x4plus model, real inference run on RTX 2050).
+- Completed Phase 1 (Minimal FastAPI backend, SQLite job queue, worker subprocess, SSE progress, automated tests).
+- Completed Phase 2 (Vite + React 19 + Tailwind v4 Web MVP, full upload -> SSE status -> preview loop).
+- Completed Phase 3 (Professional Editor: Before/After slider, side-by-side, zoom, 100% /crop endpoint, fast crop-preview, history drawer, export conversions).
+- Completed Phase 4 (Models, Analyzer, Router):
+  - Model registry managing `realesrgan-x4plus` and `realesrgan-x4plus-anime`.
+  - Smoke-tested `realesrgan-x4plus-anime` on RTX 2050 GPU 0 (passed in 4.78s).
+  - Image degradation analyzer: normalized Laplacian variance, Immerkaer MAD noise, JPEG quantization / blockiness, anime vs photo classifier.
+  - Model router with automated selection and human-readable reasoning.
+  - Image analyze endpoint `/api/v1/images/{id}/analyze`.
+  - UI updated with degradation telemetry and architecture selection.
+  - All 19 tests passed.
+  - Graphify rebuilt: 560 nodes, 773 edges, 44 communities.
+- Completed Phase 5 (Tiling & Hardware Optimization):
+  - Standalone `TileEngine` (`ai_engine/processing/tile_engine.py`) with cosine feathered blending masks.
+  - Automatic OOM retry logic with tile subdivision (halving tile size).
+  - Maximum output pixel cap (100 MP) validation and enforcement.
+  - Hardware memory profile detection (`ai_engine/memory/memory_manager.py`).
+  - Seam suppression and cancellation tests in `tests/test_phase5_tiling.py`.
+  - All 26 tests in test suite passed.
+  - Graphify updated: 604 nodes, 850 edges, 51 communities.
+- Completed Phase 6 (Restore + Upscale and Advanced Controls):
+  - Alpha handling (`ai_engine/processing/alpha_handler.py`): bleed colors outward into transparent areas, separate Lanczos alpha upscale, recombine RGBA.
+  - Classical & adaptive restoration (`ai_engine/processing/restoration.py`): bilateral deblocking, adaptive fast non-local means denoising, conservative unsharp masking.
+  - Downscale-consistency check (`ai_engine/processing/consistency.py`): PSNR, MAE, color channel drift, amplified difference map.
+  - Provenance metadata embedder (`ai_engine/processing/metadata_embedder.py`): PNG tEXt chunks recording model, scale, stages, timestamp, consistency.
+  - Unified multi-stage pipeline (`ai_engine/pipelines/pipeline.py`) integrated into worker subprocess.
+  - Verified restore, upscale, and restore+upscale modes are real and distinct in `tests/test_phase6_pipeline.py`.
+  - Full test suite: 31/31 passed.
+  - Graphify updated: 660 nodes, 983 edges, 48 communities.
+- Completed Phase 7 (Generative Research & Hardware Constraints Documentation):
+  - Evaluated Tier 3 diffusion and generative architectures (DiffBIR, SUPIR) against Profile A.
+  - Documented strict hardware limits (4GB VRAM ceiling, SDXL UNet compute incompatibility) in `docs/KNOWN_LIMITATIONS.md`.
+  - Added Tier 3 models to registry with clear `unsupported_reason` surfaced via `/api/v1/models` and disabled options in UI dropdown.
+  - Phase 7 automated tests passed in `tests/test_phase7_generative_constraints.py` (33/33 tests passed overall).
+  - Graphify updated: 670 nodes, 995 edges, 49 communities.
+- Completed Phase 8 (Tests, Security, Benchmarks, Release):
+  - Ran automated hardware benchmarks on NVIDIA RTX 2050 GPU across 256x256 and 512x512 resolutions; results documented in `benchmarks/BENCHMARK_RESULTS.md`.
+  - Security suite in `tests/test_phase8_security.py` verifying path traversal prevention, decompression bomb guards, non-image rejection, and filesystem secrecy.
+  - Finalized `README.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/USER_GUIDE.md`.
+  - Total automated tests passing: 38/38.
+  - Full PRD Section 18 Definition of Done satisfied.
+- Completed V3 Quality Refinement & Addendum (2026-11-08):
+  - Phase 0: Baseline frozen; Vulkan Device 0 confirmed as `NVIDIA GeForce RTX 2050` by name; real `shutil.disk_usage` (1.25x margin) and available RAM (< 350 MB block) preflights; Plan C (pure Lanczos resample) wired in UI, backend, and progressive pipeline; sidecar `.manifest.json` for all formats; pipeline trace in `docs/V3_PIPELINE_TRACE.md`.
+  - Phase 1: Lossless 4-ROI tap test (T0–T5) on grainy portrait; identified classical pre-denoise as root cause of texture erasure; documented in `docs/V3_TEXTURE_LOSS_REPORT.md`.
+  - Phase 2: Preserved skin texture and optical grain on human-photo path; skipped pre-denoise, disabled unsharp mask on natural/faithful, applied 20% Lanczos optical blend (noise std ratio improved from 0.57 to 0.89, spectral energy from 0.77 to 0.93, halo overshoot < 2.4).
+  - Phase 3: Single `backend/app/core/presets.yaml` configuration coupled to backend workers and manifests; `/presets` endpoint.
+  - Phase 4: Model tuning verified `realesrgan-x4plus-anime` is superior for manga (Laplacian variance 11,961 vs 662 for animevideov3).
+  - Phase 5: Expanded automated test suite to 59/59 passed (`pytest tests/`), clean frontend production build (`tsc -b && vite build`), updated `FINAL_PRODUCT_V2.md`.

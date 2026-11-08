@@ -54,7 +54,8 @@ class RestorationEngine:
         img: Image.Image,
         noise_score: float = 0.0,
         has_jpeg_artifacts: bool = False,
-        apply_sharpen: bool = False
+        apply_sharpen: bool = False,
+        sharpen_amount: float = 0.30
     ) -> Image.Image:
         """
         Full restoration pipeline on RGB image.
@@ -74,7 +75,7 @@ class RestorationEngine:
 
         # 3. Restrained unsharp mask
         if apply_sharpen:
-            arr = cls.mild_unsharp_mask(arr, amount=0.30, radius=0.8)
+            arr = cls.mild_unsharp_mask(arr, amount=sharpen_amount, radius=0.8)
 
         return Image.fromarray(arr, mode="RGB")
 

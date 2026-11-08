@@ -76,15 +76,33 @@ def process_job(job_id: str) -> None:
         model_name = job.get("model") or "realesrgan-x4plus"
         preset_name = job.get("preset") or "natural"
 
+        parsed_plan = None
         if plan_json:
-            plan = json.loads(plan_json)
+            try:
+                parsed_plan = json.loads(plan_json)
+            except Exception:
+                parsed_plan = None
+
+        has_progressive_stages = (
+            parsed_plan is not None 
+            and isinstance(parsed_plan, dict) 
+            and bool(parsed_plan.get("stages"))
+        )
+
+        if has_progressive_stages:
+            plan = parsed_plan
             if "preset" not in plan or not plan.get("preset"):
                 plan["preset"] = preset_name
             if preset_name:
                 from backend.app.services.preset_service import preset_service
                 p_cfg = preset_service.get_preset(preset_name)
-                for k in ["outline_engine", "outline_strength", "clean_paper", "deep_ink", "protect_screentones", "neutralize_chromatic", "manga_clean_ink"]:
-                    if k in p_cfg:
+                for k in [
+                    "outline_engine", "outline_strength", "clean_paper", "deep_ink",
+                    "protect_screentones", "neutralize_chromatic", "manga_clean_ink",
+                    "pre_denoise", "post_sharpen", "deblock_jpeg", "denoise_strength",
+                    "sharpen_amount", "texture_blend_weight"
+                ]:
+                    if k in p_cfg and k not in plan:
                         plan[k] = p_cfg[k]
             for stage in plan.get("stages", []):
                 if stage.get("operation") != "classical_resample" and model_name:
@@ -104,16 +122,16 @@ def process_job(job_id: str) -> None:
                 quality=quality
             )
         else:
-            # Extract degradation overrides from plan_json if present
+            # Extract degradation and preset overrides from parsed_plan if present
             degrad_overrides = {}
-            if plan_json:
-                try:
-                    p_info = json.loads(plan_json)
-                    for k in ["pre_denoise", "post_sharpen", "deblock_jpeg", "denoise_strength", "sharpen_amount"]:
-                        if k in p_info:
-                            degrad_overrides[k] = p_info[k]
-                except Exception:
-                    pass
+            if parsed_plan and isinstance(parsed_plan, dict):
+                for k in [
+                    "pre_denoise", "post_sharpen", "deblock_jpeg", "denoise_strength", "sharpen_amount",
+                    "outline_engine", "outline_strength", "clean_paper", "deep_ink",
+                    "protect_screentones", "neutralize_chromatic", "manga_clean_ink", "texture_blend_weight"
+                ]:
+                    if k in parsed_plan:
+                        degrad_overrides[k] = parsed_plan[k]
 
             # Execute standard pipeline
             res = pipeline.run(

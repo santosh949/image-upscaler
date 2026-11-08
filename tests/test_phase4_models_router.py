@@ -152,3 +152,78 @@ def test_degradation_overrides_wiring(tmp_path):
     )
     assert any("classical-restoration" in s for s in res["stages_executed"])
 
+def test_job_worker_recommended_parameters_execution(requires_ncnn, tmp_path):
+    """Verifies standard job with recommended_parameters routes to pipeline.run and completes."""
+    fixture_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "fixtures", "test_input.png"))
+    with open(fixture_path, "rb") as f:
+        up_res = client.post("/api/v1/images", files={"file": ("test_input.png", f, "image/png")})
+    assert up_res.status_code == 200
+    img_id = up_res.json()["image_id"]
+
+    # Submit job with recommended_parameters and NO plan_json
+    job_res = client.post("/api/v1/jobs", json={
+        "image_id": img_id,
+        "mode": "upscale",
+        "scale": 4,
+        "model": "realesrgan-x4plus-anime",
+        "recommended_parameters": {
+            "pre_denoise": "medium",
+            "deblock_jpeg": True,
+            "denoise_strength": 6.0,
+            "post_sharpen": "low"
+        }
+    })
+    assert job_res.status_code == 200
+    job_id = job_res.json()["job_id"]
+
+    # Wait for completion
+    for _ in range(40):
+        status_res = client.get(f"/api/v1/jobs/{job_id}").json()
+        if status_res["status"] in ("completed", "failed"):
+            break
+        time.sleep(1.0)
+
+    assert status_res["status"] == "completed", f"Job failed unexpectedly: {status_res.get('error')}"
+
+def test_progressive_pipeline_recommended_parameters(tmp_path):
+    """Verifies multi-stage progressive pipeline consumes pre-denoise and post-sharpen."""
+    from ai_engine.pipelines.progressive_pipeline import progressive_pipeline
+    test_img = Image.new("RGB", (64, 64), (100, 150, 200))
+    in_path = str(tmp_path / "prog_in.png")
+    out_path = str(tmp_path / "prog_out.png")
+    test_img.save(in_path)
+
+    plan = {
+        "plan_type": "plan_a",
+        "target_width": 128,
+        "target_height": 128,
+        "pre_denoise": "medium",
+        "denoise_strength": 5.0,
+        "deblock_jpeg": True,
+        "post_sharpen": "low",
+        "sharpen_amount": 0.35,
+        "stages": [
+            {
+                "stage_index": 1,
+                "operation": "classical_resample",
+                "model_name": "lanczos",
+                "from_res": [64, 64],
+                "to_res": [128, 128],
+                "target_scale": 2.0
+            }
+        ]
+    }
+
+    res = progressive_pipeline.run(
+        input_path=in_path,
+        output_path=out_path,
+        plan=plan,
+        job_id="test_prog_degrad",
+        format_name="PNG"
+    )
+
+    assert res["status"] == "completed"
+    assert "classical-restoration-prepass" in res["stages_executed"]
+    assert "conservative-post-polish" in res["stages_executed"]
+
+

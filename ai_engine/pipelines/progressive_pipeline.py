@@ -47,13 +47,38 @@ class ProgressivePipeline:
 
         raw_img = Image.open(input_path)
         current_img, alpha_channel, has_alpha = AlphaHandler.prepare_rgb_and_alpha(raw_img)
+        stages_executed: List[str] = []
+
+        # Pre-pass artifact / noise suppression if configured
+        pre_denoise = plan.get("pre_denoise", "none")
+        deblock_jpeg = bool(plan.get("deblock_jpeg", False))
+        denoise_strength = float(plan.get("denoise_strength", 5.0 if pre_denoise == "medium" else 2.0))
+        if pre_denoise == "medium":
+            if progress_cb:
+                progress_cb(0, 1, "Artifact & noise suppression prepass")
+            current_img = RestorationEngine.restore(
+                current_img,
+                noise_score=denoise_strength,
+                has_jpeg_artifacts=bool(plan.get("deblock_jpeg", True)),
+                apply_sharpen=False
+            )
+            stages_executed.append("classical-restoration-prepass")
+        elif pre_denoise == "low" or deblock_jpeg:
+            if progress_cb:
+                progress_cb(0, 1, "Mild deblocking prepass")
+            current_img = RestorationEngine.restore(
+                current_img,
+                noise_score=denoise_strength if pre_denoise == "low" else 0.0,
+                has_jpeg_artifacts=True,
+                apply_sharpen=False
+            )
+            stages_executed.append("mild-deblock-prepass")
 
         stages = plan.get("stages", [])
         if not stages:
             raise ValueError("Plan contains no execution stages")
 
         total_stages = len(stages)
-        stages_executed = []
 
         for s_idx, stage in enumerate(stages):
             if cancel_check and cancel_check():
@@ -218,6 +243,21 @@ class ProgressivePipeline:
                 neutralize_chromatic=bool(plan.get("neutralize_chromatic", True))
             )
             stages_executed.append("manga-outline-master-engine")
+
+        # Post-sharpening refinement if configured
+        post_sharpen = plan.get("post_sharpen", "off")
+        sharpen_amount = float(plan.get("sharpen_amount", 0.30))
+        if post_sharpen in ("low", "medium"):
+            if progress_cb:
+                progress_cb(total_stages, total_stages, "Post-sharpening refinement")
+            current_img = RestorationEngine.restore(
+                current_img,
+                noise_score=0.0,
+                has_jpeg_artifacts=False,
+                apply_sharpen=True,
+                sharpen_amount=sharpen_amount
+            )
+            stages_executed.append("conservative-post-polish")
 
         # Embed metadata provenance and save atomically with sidecar manifest
         runtime = time.perf_counter() - start_time

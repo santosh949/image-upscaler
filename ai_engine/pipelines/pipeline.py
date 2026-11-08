@@ -89,23 +89,26 @@ class EnhancementPipeline:
 
         elif mode in ("upscale", "restore_upscale", "restore+upscale"):
             is_restore_mode = mode in ("restore_upscale", "restore+upscale")
+            deblock_jpeg = bool(preset_cfg.get("deblock_jpeg", False))
+            denoise_strength = float(preset_cfg.get("denoise_strength", 5.0 if pre_denoise == "medium" else 2.0))
+
             # Pre-pass denoise if mode is restore_upscale or configured by preset (e.g. smooth_clean)
             if is_restore_mode or pre_denoise == "medium":
                 if progress_cb:
                     progress_cb(1, 4, "Stage 1: Artifact & noise suppression")
                 cleaned_rgb = RestorationEngine.restore(
                     rgb_img,
-                    noise_score=5.0,
-                    has_jpeg_artifacts=True,
+                    noise_score=denoise_strength,
+                    has_jpeg_artifacts=bool(preset_cfg.get("deblock_jpeg", True)),
                     apply_sharpen=False
                 )
                 stages_executed.append("classical-restoration-prepass")
-            elif pre_denoise == "low":
+            elif pre_denoise == "low" or deblock_jpeg:
                 if progress_cb:
                     progress_cb(1, 4, "Stage 1: Mild deblocking prepass")
                 cleaned_rgb = RestorationEngine.restore(
                     rgb_img,
-                    noise_score=2.0,
+                    noise_score=denoise_strength if pre_denoise == "low" else 0.0,
                     has_jpeg_artifacts=True,
                     apply_sharpen=False
                 )
@@ -185,14 +188,16 @@ class EnhancementPipeline:
             )
 
             # Post-sharpen if in restore_upscale mode or configured by preset (e.g. more_detail)
-            if is_restore_mode or post_sharpen == "low":
+            sharpen_amount = float(preset_cfg.get("sharpen_amount", 0.30))
+            if is_restore_mode or post_sharpen in ("low", "medium"):
                 if progress_cb:
                     progress_cb(3, 4, "Post-sharpening refinement")
                 final_rgb = RestorationEngine.restore(
                     upscaled,
                     noise_score=0.0,
                     has_jpeg_artifacts=False,
-                    apply_sharpen=True
+                    apply_sharpen=True,
+                    sharpen_amount=sharpen_amount
                 )
                 stages_executed.append("conservative-post-polish")
             else:

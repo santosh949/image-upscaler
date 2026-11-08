@@ -9,128 +9,81 @@
 [![Tests Passing](https://img.shields.io/badge/tests-68%2F68%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Local-first, privacy-respecting AI super-resolution & image restoration studio.**  
-*Engineered to run 8K UHD scaling and precision manga inking on budget 4GB VRAM hardware without memory exhaustion.*
+**A free, local AI super-resolution studio designed to scale images up to 8K UHD on consumer hardware.**  
+Runs offline via Vulkan shaders with specialized processing for manga, anime, and realistic photography.
 
-[Features](#-key-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [Manga Engine](#-manga--anime-outline-mastery) • [Benchmarks](#-hardware-benchmarks) • [License](#-license)
+[Quick Start](#-quick-start) • [Key Differences](#-how-it-differs-from-standard-upscalers) • [Core Features](#-core-features) • [System Limits](#-hardware-requirements--limits) • [Benchmarks](#-benchmarks) • [Architecture](#-architecture)
 
 </div>
 
 ---
 
-## 💡 Why This Image Upscaler?
-
-Most AI upscalers fall into two extremes: paid cloud API services with strict usage credits, or heavy Python scripts that crash entry-level GPUs with out-of-memory errors and blur delicate manga screentones or line art into mud.
-
-This project is built as a **free, local desktop studio** that directly adapts to whatever hardware you have:
-* **100% Free & Unlimited:** No subscription, no API tokens, no cloud servers. Runs locally with zero telemetry.
-* **Adapts to Device Capabilities:** Integrated Preflight Resource Planning calculates RAM and VRAM requirements before running. Automatically adjusts tiling and execution strategy so you can upscale images up to **8K UHD** even on a budget laptop with 4GB VRAM.
-* **Content-Specific Processing:** Dedicated algorithms tailored for Manga, Anime, Photography, and Archival images rather than a one-size-fits-all filter.
-
----
-
-## ⚖️ What Makes It Different from Regular Upscalers?
+## ⚖️ How It Differs from Standard Upscalers
 
 | Aspect | Standard AI Upscalers | This Studio |
 | :--- | :--- | :--- |
-| **Cost & Limits** | Paid subscriptions, monthly credit caps, or cloud fees. | **100% Free & Unlimited**. Fully offline, zero data leaves your machine. |
-| **Hardware Fit** | Crashes on large images with Out-Of-Memory (OOM) on entry GPUs. | **Hardware Adaptive**. Preflight checks evaluate GPU memory; micro-tiling streams 8K without memory spikes. |
-| **Manga & Line Art** | Smudges halftone screentone dots and creates distracting white halos around black lines. | **4-Pillar Manga Engine**: Zero-halo mathematical bounding, sub-pixel edge steepening, screentone frequency protection, and paper purification. |
-| **Anime & Illustrations** | Over-smooths flat color zones and creates plastic-looking edges. | **Tuned Anime Weights**: Clean vector-like line borders with smooth gradient transitions and alpha bleed handling. |
-| **Realistic Photos** | Blurs fine skin/fabric textures into waxy CGI artifacts. | **Degradation-Aware Processing**: Laplacian blur and noise variance analysis adjust sharpness without destroying real texture. |
-| **Forensic / Archival** | Forces AI hallucination on everything (inventing fake details on text/documents). | **Controllable Hallucination (Plan C)**: Pure anti-aliased Lanczos resample option with 0% AI hallucination for authentic fidelity. |
-| **Batch Processing** | Either unsupported or tries to run concurrently, freezing the system. | **Sequential GPU Queue**: Safely processes multiple items one-by-one to protect VRAM, then packages outputs into a single ZIP. |
+| **Pricing & Privacy** | Paid subscriptions, monthly credit limits, or cloud fees. | **100% Free & Unlimited**. Fully offline; no image data ever leaves your computer. |
+| **Hardware Fit** | Heavy scripts or cloud dependencies that crash entry-level GPUs on large images. | **Hardware Adaptive**. Preflight safety checks evaluate RAM/VRAM to run 8K scaling safely on budget 4GB laptops. |
+| **Manga & Line Art** | Smudges halftone screentone dots and creates distracting white halos around black lines. | **Dedicated Manga Engine**: Zero-halo mathematical bounding, sub-pixel edge steepening, screentone dot protection, and paper whitening. |
+| **Anime & Art** | Over-smooths flat color zones and creates plastic-looking edges. | **Tuned Anime Weights**: Clean vector-like line borders with smooth gradient transitions and alpha bleed correction. |
+| **Realistic Photos** | Blurs fine skin/fabric textures into waxy synthetic artifacts. | **Degradation-Aware Analysis**: Laplacian blur and noise variance estimation preserve natural high-frequency textures. |
+| **Archival / Forensic** | Forces AI hallucination on everything, inventing fake details on text/documents. | **Controllable Hallucination (Plan C)**: Pure anti-aliased Lanczos resample with 0% AI hallucination for authentic fidelity. |
+| **Batch Processing** | Either missing or tries to run concurrently, causing out-of-memory GPU crashes. | **Sequential GPU Queue**: Safely processes multiple images one-by-one, exporting all results in a single ZIP. |
 
 ---
 
-## 🚀 Key Features
+## 🚀 Core Features
 
-* **Progressive 4K $\rightarrow$ 8K Engine:** 
-  Seamlessly scales large inputs through micro-tile streaming with 2D Hann feathered cosine blending. Eliminates edge seams and prevents RAM thrashing.
-* **4-Pillar Manga/Anime Outline Master Engine:**
-  * **Sub-Pixel Edge Normal Steepening:** Non-linear sigmoid remap steepens stroke boundaries by >12%.
-  * **Zero-Halo Mathematical Bounding:** Pixel luminance is strictly bounded inside $[local\_min, local\_max]$, mathematically eliminating white halo spikes.
-  * **Screentone Frequency Protection:** Distinguishes fine halftone shading dots from solid strokes, shielding them from smudging.
-  * **Paper Purification & Deep Ink:** Background scanner haze and mosquito artifacts ($L > 232$) smoothly snap to pure `#FFFFFF`, while stroke cores ($L < 32$) snap to deep `#000000` ink.
-* **Resolution Planner & Hallucination Controls:**
-  * **Plan A:** Fast direct neural single-pass.
-  * **Plan B:** Progressive staged super-resolution.
-  * **Plan C:** Pure anti-aliased Lanczos resample (0% hallucinated detail for archival/forensic fidelity).
-* **Batch Upload & Automated Queue:**
-  * Multi-file drag & drop support.
-  * Strict single-worker sequential GPU dispatching.
-  * Real-time per-item progress, pause/resume checkpoints, and one-click ZIP package download.
-* **Professional Interactive Studio UI:**
-  * Draggable Before/After split comparison slider.
-  * Side-by-side synchronized zoom (100% to 300%).
-  * Real-time image degradation analysis (Laplacian blur, noise variance, JPEG quality estimation).
-  * 1-second crop inspection mode (`/crop`).
-  * Cryptographic provenance sidecar manifests (`.manifest.json`).
+### 1. Progressive 8K Scaling Engine
+* **Micro-Tile Streaming:** Slices large inputs into manageable tiles with 2D Hann-feathered cosine blending.
+* **Zero Seam Artifacts:** Eliminates visible tile gridlines and prevents high-RAM exhaustion during high-megapixel upscaling.
 
----
+### 2. 4-Pillar Manga & Line Art Engine
+* **Sub-Pixel Edge Steepening:** Non-linear sigmoid remap sharpens line boundaries without thickening strokes.
+* **Zero-Halo Clamping:** Pixel luminance is strictly bounded to eliminate ringing spikes along high-contrast edges.
+* **Screentone Frequency Protection:** Distinguishes fine halftone dot patterns from line strokes to prevent smudging.
+* **Paper Purification & Deep Ink:** Background scanner haze ($L > 232$) snaps cleanly to pure white (`#FFFFFF`), while line cores ($L < 32$) snap to deep black (`#000000`).
 
-## 🏗 Architecture
+### 3. Sequential Batch Queue
+* Drag-and-drop multi-file uploads.
+* Thread-safe single-worker dispatcher processes items sequentially to protect GPU VRAM.
+* Real-time progress tracking, pause/resume controls, and one-click ZIP package download.
 
-```text
-       Frontend (React 19 + TypeScript + Vite + Tailwind CSS v4)
-                                │ HTTP / SSE
-                                ▼
-       FastAPI Backend Server (Port 8000)
-         ├── Job & Queue Dispatcher (Thread-safe single GPU worker queue)
-         ├── Version Graph DAG Repository (SQLite)
-         └── Resolution Planner (Real RAM/VRAM/Disk Preflight Estimator)
-                                │ Subprocess Isolation
-                                ▼
-       Inference Engine (NVIDIA RTX / Vulkan Device 0)
-         ├── Degradation Analyzer (Blur, Immerkaer Noise, JPEG Q-tables)
-         ├── Neural Router (Plain-language task recommendation)
-         ├── Tiled NCNN Engine (Hann feathered cosine overlap blending)
-         │     ├── RealESRGAN x4plus (Photographic)
-         │     └── RealESRGAN x4plus-anime (Anime / Manga)
-         ├── 4-Pillar Manga Outline Engine (Zero-halo edge normal steepening)
-         ├── Alpha Bleed Channel Preserver (Inpainting + Lanczos alpha)
-         └── Provenance Sidecar Embedder (.manifest.json lineage tracking)
-```
+### 4. Interactive Studio UI
+* Draggable Before/After split comparison slider.
+* Synchronized side-by-side zoom (100% to 300%).
+* Real-time image degradation analysis (Laplacian blur score, noise variance, JPEG quality estimate).
+* Non-destructive version graph tracking parent/child versions and processing parameters.
 
 ---
 
-## 🖥️ Hardware Requirements & Maximum Processing Limits
+## 🖥️ Hardware Requirements & Limits
 
-### Hardware Specifications
+### System Requirements
 
-| Component | Minimum Requirements (Budget / Laptop) | Recommended Setup (High Performance) |
+| Component | Minimum (Budget / Laptop) | Recommended (Desktop / Workstation) |
 | :--- | :--- | :--- |
 | **Operating System** | Windows 10/11 (64-bit), Ubuntu 20.04+ LTS, macOS (MoltenVK) | Windows 11 (64-bit) or Modern Linux x86_64 |
-| **Processor (CPU)** | Intel Core i3 (8th Gen+) or AMD Ryzen 3 (1000 series+), 4 cores | Intel Core i5/i7 (11th Gen+) or AMD Ryzen 5/7, 6+ cores |
-| **System Memory (RAM)** | **8 GB DDR4** (with $\ge$ 4 GB free available memory) | **16 GB DDR4/DDR5** or higher |
-| **Graphics (GPU)** | **Vulkan 1.1+ Compatible**: NVIDIA GTX 960 / RTX 2050 Mobile / AMD RX 550 / Intel Iris Xe | **NVIDIA GeForce RTX 3060 / 4050 / 4060+** (6 GB – 8 GB+ VRAM) |
-| **Video Memory (VRAM)** | **2 GB – 4 GB VRAM** (utilizes micro-tiling) | **6 GB – 8 GB+ VRAM** |
-| **Disk Space** | 2 GB free space for binaries and model checkpoints | NVMe SSD recommended for fast tile I/O |
+| **Processor (CPU)** | Intel Core i3 (8th Gen+) / AMD Ryzen 3 (1000+), 4 cores | Intel Core i5/i7 (11th Gen+) / AMD Ryzen 5/7, 6+ cores |
+| **System Memory (RAM)** | **8 GB DDR4** ($\ge$ 4 GB free available memory) | **16 GB DDR4/DDR5** or higher |
+| **Graphics (GPU)** | **Vulkan 1.1+ Compatible**: GTX 960 / RTX 2050 Mobile / RX 550 / Intel Iris Xe | **NVIDIA RTX 3060 / 4050 / 4060+** (6 GB – 8 GB+ VRAM) |
+| **Video Memory (VRAM)** | **2 GB – 4 GB VRAM** (micro-tiling handles memory caps) | **6 GB – 8 GB+ VRAM** |
+| **Disk Space** | 2 GB free SSD space for dependencies and model checkpoints | NVMe SSD |
 
----
+### Maximum Resolution Limits
 
-### Maximum Processing & Resolution Limits
+| Mode | Max Resolution | Megapixels | Memory Strategy & Hardware |
+| :--- | :--- | :--- | :--- |
+| **Standard 2× / 4×** | 4K UHD ($3840 \times 2160$) | **8.29 MP** | Direct neural pass or single-pass 512px tiling (4 GB VRAM) |
+| **Progressive 8K Engine** | **8K UHD ($7680 \times 4320$)** | **33.18 MP** | Hann-feathered micro-tile streaming (tested on **4 GB VRAM / 8 GB RAM**) |
+| **Architectural Hard Limit** | **Up to $8192 \times 8192$** | **67.11 MP** | Multi-pass staged tile stitching (6 GB+ VRAM / 16 GB RAM) |
+| **Batch Queue Capacity** | **Unlimited sequential queue** (20+ images/batch) | Single-worker sequential dispatch prevents VRAM accumulation |
 
-Because this application incorporates a **dynamic micro-tiling streaming engine**, the maximum resolution is not bounded by raw GPU VRAM size:
-
-| Scale Mode | Target Output Resolution | Total Pixels | Processing Strategy | Tested Hardware Tier |
-| :--- | :--- | :--- | :--- | :--- |
-| **Standard Upscale (2× / 4×)** | Up to 4K UHD ($3840 \times 2160$) | **8.29 Megapixels** | Direct neural pass or single-pass 512px tiling | 4 GB VRAM (RTX 2050/3050) / 8 GB RAM |
-| **Progressive 8K Engine** | **8K UHD ($7680 \times 4320$)** | **33.18 Megapixels** | 2D Hann-feathered micro-tile streaming (zero edge seams) | **4 GB VRAM / 8 GB RAM** (Verified) |
-| **Architectural Hard Limit** | **Up to $8192 \times 8192$** | **67.11 Megapixels** | Multi-pass staged tile stitching | 6 GB+ VRAM / 16 GB RAM |
-| **Batch Queue Capacity** | **Unlimited sequential queue** (20+ images per batch) | Single-worker sequential dispatching avoids VRAM stacking | Any supported hardware |
-
-> 🛡️ **Built-in Safety Preflight Planner**: Before processing begins, the backend measures image dimensions and estimates the exact RAM, VRAM, and temporary disk storage required. If an operation would exceed your available memory, the planner automatically switches to staged micro-tiling or alerts you before execution, preventing system lockups and GPU crash loops.
+> 🛡️ **Safety Preflight System**: Before execution, the backend estimates exact RAM, VRAM, and disk space required for your input. If an operation exceeds safe physical limits, it automatically switches to staged micro-tiling or alerts you before running, preventing system freezes.
 
 ---
 
 ## ⚡ Quick Start
-
-### Prerequisites
-* Windows 10/11, Linux, or macOS.
-* Dedicated or integrated GPU supporting **Vulkan** (tested on NVIDIA GeForce RTX 2050 Mobile 4GB VRAM).
-* Python 3.11+
-* Node.js 18+ & npm
 
 ### 1. Clone Repository
 ```bash
@@ -138,12 +91,11 @@ git clone https://github.com/santosh949/image-upscaler.git
 cd image-upscaler
 ```
 
-### 2. Set Up Python Backend
+### 2. Set Up Python Environment
 ```bash
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv .venv
 
-# Activate virtual environment
 # Windows:
 .venv\Scripts\activate
 # Linux/macOS:
@@ -153,8 +105,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Automated Model & Binary Setup
-Run the automated downloader to install official Real-ESRGAN NCNN Vulkan binaries and weights:
+### 3. Download Models & Native Binaries
+Run the setup script to automatically download official Real-ESRGAN NCNN Vulkan binaries and weights:
 ```bash
 python scripts/setup_environment.py
 ```
@@ -165,7 +117,7 @@ npm --prefix frontend install
 npm --prefix frontend run build
 ```
 
-### 5. Start Studio
+### 5. Launch Application
 ```bash
 python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
@@ -173,27 +125,51 @@ Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.
 
 ---
 
-## 🧪 Hardware Benchmarks
+## 🧪 Benchmarks
 
-Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA GeForce RTX 2050 4 GB VRAM, Windows 11):
+Measured on **Profile A Constrained Hardware** (Intel Core i5, 8 GB RAM, NVIDIA GeForce RTX 2050 Mobile 4 GB VRAM, Windows 11):
 
-| Operation | Input Size | Output Size | Output Megapixels | Runtime | Peak Memory | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Direct 4× Photo** | 512 × 512 | 2048 × 2048 | 4.19 MP | **3.82 s** | < 1.2 GB VRAM | Verified |
-| **Manga Inking Master** | 140 × 65 | 560 × 260 | 0.15 MP | **5.72 s** | < 800 MB VRAM | Verified |
-| **Progressive 4K $\rightarrow$ 8K** | 3840 × 2160 | 7680 × 4320 | **33.18 MP** | **134.97 s** | < 1.8 GB VRAM | Verified |
-| **Crop Inspection (Preview)** | 256 × 256 | 1024 × 1024 | 1.05 MP | **0.95 s** | < 600 MB VRAM | Verified |
+| Operation | Input Resolution | Output Resolution | Output Megapixels | Runtime | Peak Memory |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Direct 4× Photo** | 512 × 512 | 2048 × 2048 | 4.19 MP | **3.82 s** | < 1.2 GB VRAM |
+| **Manga Inking Master** | 140 × 65 | 560 × 260 | 0.15 MP | **5.72 s** | < 800 MB VRAM |
+| **Progressive 4K $\rightarrow$ 8K** | 3840 × 2160 | 7680 × 4320 | **33.18 MP** | **134.97 s** | < 1.8 GB VRAM |
+| **Preview Crop** | 256 × 256 | 1024 × 1024 | 1.05 MP | **0.95 s** | < 600 MB VRAM |
 
 ---
 
-## 🔬 Automated Testing
+## 🏗 Architecture
 
-This repository includes **68 automated tests** covering tiling boundaries, memory caps, edge normal steepening, batch queue ordering, and metadata provenance:
+```text
+       Frontend (React 19 + TypeScript + Vite + Tailwind CSS v4)
+                                │ HTTP / Server-Sent Events (SSE)
+                                ▼
+       FastAPI Backend Server (Port 8000)
+         ├── Job & Queue Dispatcher (Thread-safe single GPU worker)
+         ├── Version Graph DAG Repository (SQLite)
+         └── Preflight Resolution Planner (RAM/VRAM Safety Estimator)
+                                │ Subprocess Isolation
+                                ▼
+       Inference Engine (NCNN Vulkan Device 0)
+         ├── Degradation Analyzer (Laplacian blur, noise variance, JPEG quality)
+         ├── Neural Router (Content-type auto-detection)
+         ├── Tiled NCNN Engine (2D Hann-feathered cosine blending)
+         │     ├── RealESRGAN x4plus (Photographic)
+         │     └── RealESRGAN x4plus-anime (Anime / Manga)
+         ├── 4-Pillar Manga Outline Engine (Zero-halo bounding & steepening)
+         ├── Alpha Bleed Channel Preserver (Inpainting + Lanczos alpha)
+         └── Provenance Sidecar Embedder (.manifest.json lineage records)
+```
+
+---
+
+## 🔬 Testing
+
+Includes **68 automated tests** covering tiling boundaries, memory limits, edge normal steepening, batch queue ordering, and metadata provenance:
 
 ```bash
 pytest tests/
 ```
-Output:
 ```text
 ======================= 68 passed in 72.17s =======================
 ```
@@ -203,10 +179,4 @@ Output:
 ## 📜 License
 
 * **Application Code:** [MIT License](LICENSE)
-* **Underlying Neural Models:** Powered by Tencent ARC / Real-ESRGAN open-source checkpoints (BSD 3-Clause, non-commercial / research terms).
-
----
-
-<div align="center">
-Built with precision for creators, archivists, and manga enthusiasts.
-</div>
+* **Neural Models:** Powered by Tencent ARC / Real-ESRGAN open-source checkpoints (BSD 3-Clause).

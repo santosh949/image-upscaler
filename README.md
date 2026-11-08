@@ -20,14 +20,26 @@
 
 ## 💡 Why This Image Upscaler?
 
-Most AI upscalers are simple cloud API wrappers or heavy Python scripts that crash entry-level GPUs with out-of-memory errors when processing large images, while smudging fine manga screentones and pencil line art into blurry mud.
+Most AI upscalers fall into two extremes: paid cloud API services with strict usage credits, or heavy Python scripts that crash entry-level GPUs with out-of-memory errors and blur delicate manga screentones or line art into mud.
 
-This studio is built from the ground up as a **systems-engineered desktop application**:
-* **Zero Cloud Dependencies:** 100% local inference using portable C++ NCNN Vulkan shaders. Zero telemetry, zero paid API tokens.
-* **8K on a 4GB GPU:** Progressive Per-Tile Scale Adaptation scales 4K images to **8K UHD (7680×4320)** without ever loading massive 16K intermediates into system RAM.
-* **Custom Manga & Anime Outline Engine:** Built-in computer vision algorithms providing sub-pixel edge steepening, zero-halo mathematical bounding, and local-variance screentone dot protection.
-* **Sequential Batch Queue:** Drag and drop 10+ images at once; an automated queue dispatcher processes them one-by-one to safeguard your GPU, and exports everything in a single ZIP file.
-* **Non-Destructive Version Graph:** Git-like DAG tracking parent/child versions, branching, decision history, and interactive split-slider comparisons.
+This project is built as a **free, local desktop studio** that directly adapts to whatever hardware you have:
+* **100% Free & Unlimited:** No subscription, no API tokens, no cloud servers. Runs locally with zero telemetry.
+* **Adapts to Device Capabilities:** Integrated Preflight Resource Planning calculates RAM and VRAM requirements before running. Automatically adjusts tiling and execution strategy so you can upscale images up to **8K UHD** even on a budget laptop with 4GB VRAM.
+* **Content-Specific Processing:** Dedicated algorithms tailored for Manga, Anime, Photography, and Archival images rather than a one-size-fits-all filter.
+
+---
+
+## ⚖️ What Makes It Different from Regular Upscalers?
+
+| Aspect | Standard AI Upscalers | This Studio |
+| :--- | :--- | :--- |
+| **Cost & Limits** | Paid subscriptions, monthly credit caps, or cloud fees. | **100% Free & Unlimited**. Fully offline, zero data leaves your machine. |
+| **Hardware Fit** | Crashes on large images with Out-Of-Memory (OOM) on entry GPUs. | **Hardware Adaptive**. Preflight checks evaluate GPU memory; micro-tiling streams 8K without memory spikes. |
+| **Manga & Line Art** | Smudges halftone screentone dots and creates distracting white halos around black lines. | **4-Pillar Manga Engine**: Zero-halo mathematical bounding, sub-pixel edge steepening, screentone frequency protection, and paper purification. |
+| **Anime & Illustrations** | Over-smooths flat color zones and creates plastic-looking edges. | **Tuned Anime Weights**: Clean vector-like line borders with smooth gradient transitions and alpha bleed handling. |
+| **Realistic Photos** | Blurs fine skin/fabric textures into waxy CGI artifacts. | **Degradation-Aware Processing**: Laplacian blur and noise variance analysis adjust sharpness without destroying real texture. |
+| **Forensic / Archival** | Forces AI hallucination on everything (inventing fake details on text/documents). | **Controllable Hallucination (Plan C)**: Pure anti-aliased Lanczos resample option with 0% AI hallucination for authentic fidelity. |
+| **Batch Processing** | Either unsupported or tries to run concurrently, freezing the system. | **Sequential GPU Queue**: Safely processes multiple items one-by-one to protect VRAM, then packages outputs into a single ZIP. |
 
 ---
 
